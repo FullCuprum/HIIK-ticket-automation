@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -17,9 +18,26 @@ class TicketResponse(BaseModel):
     updated_at: datetime
     session_id: int
     missing_fields: list[str] = Field(default_factory=list)
+    questions: list[str] = Field(default_factory=list)
     extracted_location: str | None = None
     extracted_problem: str | None = None
     ticket_type: str | None = None
     priority: str = "low"
     estimated_minutes: int | None = None
     required_skill: str | None = None
+
+
+class ClarificationRequest(BaseModel):
+    answers: dict[str, Any] = Field(
+        ...,
+        description="Ответы пользователя по недостающим полям.",
+        examples=[{"location": "214", "problem_description": "не работает интернет"}],
+    )
+
+
+class ClarificationResponse(BaseModel):
+    ticket_id: int
+    status: str
+    missing_fields: list[str] = Field(default_factory=list)
+    questions: list[str] = Field(default_factory=list)
+    extracted: dict[str, Any] = Field(default_factory=dict)
