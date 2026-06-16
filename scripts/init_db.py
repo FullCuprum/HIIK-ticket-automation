@@ -1,7 +1,7 @@
 import asyncio
 
 from app.db.database import Base, engine
-from app.models import approval, employee, schedule, ticket  # noqa: F401
+from app.models import Approval, Employee, Schedule, Ticket  # noqa: F401
 
 
 async def init_db() -> None:

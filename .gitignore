@@ -8,4 +8,4 @@ __pycache__/
 .vscode/
 .idea/
 *.db
-alembic/versions/*
+alembic/versions/__pycache__/
