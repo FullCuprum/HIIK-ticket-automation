@@ -1,23 +1,43 @@
 from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.models.user import User
+from app.utils.password import verify_password
 
 settings = get_settings()
 
-DEMO_USERS: dict[str, dict[str, str]] = {
-    "admin": {"password": "admin", "role": "manager"},
-    "employee": {"password": "employee", "role": "employee"},
-    "user": {"password": "user", "role": "user"},
-}
+
+def normalize_role(role: str) -> str:
+    if role == "manager":
+        return "admin"
+    return role
 
 
-def authenticate_user(username: str, password: str) -> dict[str, str] | None:
-    user = DEMO_USERS.get(username)
-    if user and user["password"] == password:
-        return {"username": username, "role": user["role"]}
-    return None
+async def authenticate_user(
+    db: AsyncSession,
+    username: str,
+    password: str,
+) -> User | None:
+    result = await db.execute(
+        select(User).where(User.username == username.strip(), User.is_active.is_(True))
+    )
+    user = result.scalar_one_or_none()
+    if user is None or not verify_password(password, user.password_hash):
+        return None
+    return user
+
+
+async def get_user_by_username(db: AsyncSession, username: str) -> User | None:
+    result = await db.execute(select(User).where(User.username == username))
+    return result.scalar_one_or_none()
+
+
+async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
+    return await db.get(User, user_id)
 
 
 def create_access_token(data: dict) -> str:

@@ -34,12 +34,18 @@ function getToken() {
   return localStorage.getItem("access_token");
 }
 
+const USER_ROLE_LABELS = {
+  user: "Пользователь",
+  employee: "Сотрудник",
+  admin: "Администратор",
+};
+
 function normalizeRole(role, username = "") {
   if (role === "manager" || role === "admin") {
-    return "manager";
+    return "admin";
   }
   if (!role && username === "admin") {
-    return "manager";
+    return "admin";
   }
   return role;
 }
@@ -68,10 +74,15 @@ function isAuthenticated() {
   return Boolean(getToken());
 }
 
+function mustChangePassword() {
+  return localStorage.getItem("must_change_password") === "1";
+}
+
 function saveAuth(data) {
   localStorage.setItem("access_token", data.access_token);
   localStorage.setItem("user_role", normalizeRole(data.role, data.username));
   localStorage.setItem("username", data.username);
+  localStorage.setItem("must_change_password", data.must_change_password ? "1" : "0");
   initNav();
 }
 
@@ -79,11 +90,44 @@ function clearAuth() {
   localStorage.removeItem("access_token");
   localStorage.removeItem("user_role");
   localStorage.removeItem("username");
+  localStorage.removeItem("must_change_password");
+}
+
+function redirectAfterLogin(data) {
+  if (data.must_change_password) {
+    window.location.href = "change-password.html";
+    return;
+  }
+
+  const role = normalizeRole(data.role, data.username);
+  if (role === "admin") {
+    window.location.href = "employees.html";
+  } else if (role === "employee") {
+    window.location.href = "schedule.html";
+  } else {
+    window.location.href = "index.html";
+  }
 }
 
 function logout() {
   clearAuth();
   window.location.href = "login.html";
+}
+
+function localTodayISO() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+}
+
+function formatDisplayDate(isoDate) {
+  if (!isoDate) return "—";
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  return date.toLocaleDateString("ru-RU", {
+    timeZone: APP_TIMEZONE,
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 function formatDateTime(value) {
@@ -148,10 +192,11 @@ function renderNav(activePage = "") {
   const role = getRole();
   const username = getUsername();
   const links = [
-    { href: "index.html", label: "Подать заявку", roles: ["user", "employee", "manager"], key: "index" },
-    { href: "schedule.html", label: "Расписание", roles: ["employee", "manager"], key: "schedule" },
-    { href: "approvals.html", label: "Утверждение", roles: ["manager"], key: "approvals" },
-    { href: "employees.html", label: "Сотрудники", roles: ["manager"], key: "employees" },
+    { href: "index.html", label: "Подать заявку", roles: ["user", "employee", "admin"], key: "index" },
+    { href: "schedule.html", label: "Расписание", roles: ["employee", "admin"], key: "schedule" },
+    { href: "approvals.html", label: "Утверждение", roles: ["admin"], key: "approvals" },
+    { href: "employees.html", label: "Сотрудники", roles: ["admin"], key: "employees" },
+    { href: "users.html", label: "Пользователи", roles: ["admin"], key: "users" },
   ];
 
   const visibleLinks = links.filter((link) => !role || link.roles.includes(role));
@@ -193,11 +238,20 @@ function roleHasAccess(role, allowedRoles) {
   return allowedRoles.includes(normalizedRole);
 }
 
-function guardPage(allowedRoles = []) {
+function guardPage(allowedRoles = [], options = {}) {
   if (!isAuthenticated()) {
     window.location.href = "login.html";
     return false;
   }
+
+  if (!options.skipPasswordChange && mustChangePassword()) {
+    const currentPage = window.location.pathname.split("/").pop();
+    if (currentPage !== "change-password.html") {
+      window.location.href = "change-password.html";
+      return false;
+    }
+  }
+
   const role = getRole();
   if (allowedRoles.length && !roleHasAccess(role, allowedRoles)) {
     showToast("Недостаточно прав для просмотра страницы", "error");

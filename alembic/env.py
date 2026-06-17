@@ -9,7 +9,7 @@ from alembic import context
 
 from app.config import get_settings
 from app.db.database import Base
-from app.models import Approval, Employee, Schedule, Ticket  # noqa: F401
+from app.models import Approval, Employee, Schedule, Ticket, User  # noqa: F401
 
 config = context.config
 

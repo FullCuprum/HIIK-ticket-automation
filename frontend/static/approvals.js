@@ -19,7 +19,7 @@ document.addEventListener("alpine:init", () => {
     },
 
     init() {
-      if (!guardPage(["manager"])) return;
+      if (!guardPage(["admin"])) return;
       this.loadApprovals();
     },
 

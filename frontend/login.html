@@ -48,7 +48,7 @@
     </section>
   </main>
 
-  <script src="static/app.js?v=3"></script>
+  <script src="static/app.js?v=5"></script>
   <script>
     function loginPage() {
       return {
@@ -66,14 +66,7 @@
             });
             saveAuth(data);
             showToast("Вход выполнен", "success");
-            const role = normalizeRole(data.role, data.username);
-            if (role === "manager") {
-              window.location.href = "employees.html";
-            } else if (role === "employee") {
-              window.location.href = "schedule.html";
-            } else {
-              window.location.href = "index.html";
-            }
+            redirectAfterLogin(data);
           } catch (error) {
             this.error = error.message;
             showToast(this.error, "error");

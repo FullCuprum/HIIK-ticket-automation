@@ -3,6 +3,11 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+class ScheduleEmployeeOption(BaseModel):
+    id: int
+    full_name: str
+
+
 class ScheduleItemResponse(BaseModel):
     id: int
     ticket_id: int

@@ -1,17 +1,49 @@
 document.addEventListener("alpine:init", () => {
   Alpine.data("schedulePage", () => ({
     items: [],
-    employeeId: "",
+    employees: [],
+    selectedDate: localTodayISO(),
+    employeeName: "",
     loading: false,
     error: "",
     refreshTimer: null,
+
+    get pageTitle() {
+      const label = formatDisplayDate(this.selectedDate);
+      return this.selectedDate === localTodayISO()
+        ? `Расписание на сегодня (${label})`
+        : `Расписание на ${label}`;
+    },
+
+    get emptyMessage() {
+      return `На ${formatDisplayDate(this.selectedDate)} задач в расписании нет.`;
+    },
+
+    buildQuery() {
+      const params = new URLSearchParams();
+      if (this.selectedDate) {
+        params.set("schedule_date", this.selectedDate);
+      }
+      if (this.employeeName) {
+        params.set("employee_name", this.employeeName);
+      }
+      const query = params.toString();
+      return query ? `?${query}` : "";
+    },
+
+    async loadEmployees() {
+      try {
+        this.employees = await apiRequest("/schedule/employees");
+      } catch (error) {
+        showToast(error.message, "error");
+      }
+    },
 
     async loadSchedule() {
       this.loading = true;
       this.error = "";
       try {
-        const query = this.employeeId ? `?employee_id=${encodeURIComponent(this.employeeId)}` : "";
-        this.items = await apiRequest(`/schedule/current${query}`);
+        this.items = await apiRequest(`/schedule/current${this.buildQuery()}`);
       } catch (error) {
         this.error = error.message;
         showToast(this.error, "error");
@@ -20,9 +52,10 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    init() {
-      if (!guardPage(["employee", "manager"])) return;
-      this.loadSchedule();
+    async init() {
+      if (!guardPage(["employee", "admin"])) return;
+      await this.loadEmployees();
+      await this.loadSchedule();
       this.refreshTimer = setInterval(() => this.loadSchedule(), 30000);
     },
 

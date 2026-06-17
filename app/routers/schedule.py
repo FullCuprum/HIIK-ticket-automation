@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import date, datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +11,12 @@ from app.models.employee import Employee
 from app.models.schedule import Schedule
 from app.models.ticket import Ticket
 from app.schemas.common import MessageResponse
-from app.schemas.schedule import ApprovalActionRequest, ApprovalItemResponse, ScheduleItemResponse
+from app.schemas.schedule import (
+    ApprovalActionRequest,
+    ApprovalItemResponse,
+    ScheduleEmployeeOption,
+    ScheduleItemResponse,
+)
 from app.utils.datetime_utils import local_day_range, local_today
 
 router = APIRouter(prefix="/schedule", tags=["schedule"])
@@ -19,13 +26,35 @@ async def _get_ticket_for_schedule(db: AsyncSession, schedule: Schedule) -> Tick
     return await db.get(Ticket, schedule.ticket_id)
 
 
+@router.get("/employees", response_model=list[ScheduleEmployeeOption])
+async def list_schedule_employees(
+    db: AsyncSession = Depends(get_db),
+) -> list[ScheduleEmployeeOption]:
+    result = await db.execute(
+        select(Employee)
+        .where(Employee.is_active.is_(True))
+        .order_by(Employee.full_name)
+    )
+    return [
+        ScheduleEmployeeOption(id=employee.id, full_name=employee.full_name)
+        for employee in result.scalars().all()
+    ]
+
+
 @router.get("/current", response_model=list[ScheduleItemResponse])
 async def get_current_schedule(
-    employee_id: int | None = None,
+    schedule_date: date | None = Query(
+        default=None,
+        description="Дата расписания (по умолчанию — сегодня в часовом поясе системы)",
+    ),
+    employee_name: str | None = Query(
+        default=None,
+        description="Фильтр по ФИО сотрудника",
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> list[ScheduleItemResponse]:
-    today = local_today()
-    start_of_day, end_of_day = local_day_range(today)
+    target_day = schedule_date or local_today()
+    start_of_day, end_of_day = local_day_range(target_day)
 
     query = (
         select(Schedule, Ticket, Employee, Approval)
@@ -39,8 +68,8 @@ async def get_current_schedule(
         )
         .order_by(Schedule.start_time)
     )
-    if employee_id is not None:
-        query = query.where(Schedule.employee_id == employee_id)
+    if employee_name:
+        query = query.where(Employee.full_name == employee_name.strip())
 
     result = await db.execute(query)
     rows = result.all()

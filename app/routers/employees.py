@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +8,7 @@ from app.models.approval import Approval
 from app.models.employee import Employee
 from app.models.schedule import Schedule
 from app.schemas.employee import EmployeeCreate, EmployeeListResponse, EmployeeResponse, EmployeeUpdate
-from app.utils.auth import decode_access_token
+from app.utils.deps import require_admin
 from app.utils.datetime_utils import local_day_range, local_today
 
 router = APIRouter(prefix="/employees", tags=["employees"])
@@ -20,18 +20,6 @@ SKILL_OPTIONS = [
     "event_support",
     "general_support",
 ]
-
-
-async def require_manager(authorization: str | None = Header(default=None)) -> dict:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authorization required")
-
-    payload = decode_access_token(authorization.removeprefix("Bearer ").strip())
-    if payload is None:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    if payload.get("role") != "manager":
-        raise HTTPException(status_code=403, detail="Manager access required")
-    return payload
 
 
 def _work_minutes_per_day(employee: Employee) -> int:
@@ -92,7 +80,7 @@ def _build_employee_response(
 @router.get("/", response_model=EmployeeListResponse)
 async def list_employees(
     db: AsyncSession = Depends(get_db),
-    _: dict = Depends(require_manager),
+    _: dict = Depends(require_admin),
 ) -> EmployeeListResponse:
     result = await db.execute(select(Employee).order_by(Employee.full_name))
     employees = list(result.scalars().all())
@@ -112,7 +100,7 @@ async def list_employees(
 
 
 @router.get("/skills", response_model=list[str])
-async def list_skill_options(_: dict = Depends(require_manager)) -> list[str]:
+async def list_skill_options(_: dict = Depends(require_admin)) -> list[str]:
     return SKILL_OPTIONS
 
 
@@ -120,7 +108,7 @@ async def list_skill_options(_: dict = Depends(require_manager)) -> list[str]:
 async def create_employee(
     payload: EmployeeCreate,
     db: AsyncSession = Depends(get_db),
-    _: dict = Depends(require_manager),
+    _: dict = Depends(require_admin),
 ) -> EmployeeResponse:
     employee = Employee(**payload.model_dump())
     db.add(employee)
@@ -141,7 +129,7 @@ async def update_employee(
     employee_id: int,
     payload: EmployeeUpdate,
     db: AsyncSession = Depends(get_db),
-    _: dict = Depends(require_manager),
+    _: dict = Depends(require_admin),
 ) -> EmployeeResponse:
     employee = await db.get(Employee, employee_id)
     if employee is None:
@@ -171,7 +159,7 @@ async def update_employee(
 async def deactivate_employee(
     employee_id: int,
     db: AsyncSession = Depends(get_db),
-    _: dict = Depends(require_manager),
+    _: dict = Depends(require_admin),
 ) -> EmployeeResponse:
     employee = await db.get(Employee, employee_id)
     if employee is None:
