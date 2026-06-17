@@ -41,10 +41,15 @@ class EmployeeResponse(EmployeeBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    user_username: str | None = None
     work_minutes_per_day: int
     scheduled_minutes_today: int
     workload_percent: float
     tasks_today: int
+
+
+class EmployeeCreateResponse(EmployeeResponse):
+    initial_password: str | None = None
 
 
 class EmployeeListResponse(BaseModel):

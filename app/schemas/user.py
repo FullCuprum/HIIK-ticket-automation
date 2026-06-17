@@ -11,6 +11,7 @@ class UserResponse(BaseModel):
 
     id: int
     username: str
+    full_name: str | None = None
     role: UserRole
     must_change_password: bool
     is_active: bool
@@ -20,6 +21,7 @@ class UserResponse(BaseModel):
 
 class UserCreate(BaseModel):
     username: str = Field(..., min_length=2, max_length=100)
+    full_name: str = Field(..., min_length=1, max_length=255)
     password: str = Field(..., min_length=4, max_length=128)
     role: UserRole
 
@@ -31,9 +33,18 @@ class UserCreate(BaseModel):
             raise ValueError("Username must not be empty")
         return username
 
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, value: str) -> str:
+        full_name = value.strip()
+        if not full_name:
+            raise ValueError("Full name must not be empty")
+        return full_name
+
 
 class UserUpdate(BaseModel):
     username: str | None = Field(default=None, min_length=2, max_length=100)
+    full_name: str | None = Field(default=None, min_length=1, max_length=255)
     password: str | None = Field(default=None, min_length=4, max_length=128)
     role: UserRole | None = None
     is_active: bool | None = None
@@ -47,3 +58,13 @@ class UserUpdate(BaseModel):
         if not username:
             raise ValueError("Username must not be empty")
         return username
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        full_name = value.strip()
+        if not full_name:
+            raise ValueError("Full name must not be empty")
+        return full_name

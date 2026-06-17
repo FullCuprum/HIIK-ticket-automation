@@ -125,8 +125,11 @@ document.addEventListener("alpine:init", () => {
           await apiRequest(`/employees/${this.editingId}`, "PUT", payload);
           showToast("Сотрудник обновлён", "success");
         } else {
-          await apiRequest("/employees/", "POST", payload);
-          showToast("Сотрудник добавлен", "success");
+          const data = await apiRequest("/employees/", "POST", payload);
+          const credentials = data.user_username && data.initial_password
+            ? ` Логин: ${data.user_username}, пароль: ${data.initial_password}`
+            : "";
+          showToast(`Сотрудник добавлен.${credentials}`, "success");
         }
         this.showForm = false;
         this.resetForm();
@@ -143,7 +146,7 @@ document.addEventListener("alpine:init", () => {
       if (!confirm("Деактивировать сотрудника?")) return;
       this.loading = true;
       try {
-        await apiRequest(`/employees/${employeeId}`, "DELETE");
+        await apiRequest(`/employees/${employeeId}`, "PUT", { is_active: false });
         showToast("Сотрудник деактивирован", "success");
         await this.loadEmployees();
       } catch (error) {
@@ -151,6 +154,28 @@ document.addEventListener("alpine:init", () => {
         showToast(this.error, "error");
       } finally {
         this.loading = false;
+      }
+    },
+
+    async deleteEmployee() {
+      if (!this.editingId) return;
+
+      const name = this.form.full_name.trim() || "сотрудника";
+      if (!confirm(`Удалить ${name}? Это действие нельзя отменить.`)) return;
+
+      this.saving = true;
+      this.error = "";
+      try {
+        await apiRequest(`/employees/${this.editingId}`, "DELETE");
+        showToast("Сотрудник удалён", "success");
+        this.showForm = false;
+        this.resetForm();
+        await this.loadEmployees();
+      } catch (error) {
+        this.error = error.message;
+        showToast(this.error, "error");
+      } finally {
+        this.saving = false;
       }
     },
   }));

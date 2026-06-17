@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
+from app.models.employee import Employee
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
 from app.utils.auth import get_user_by_username, normalize_role
@@ -17,6 +18,7 @@ def _to_response(user: User) -> UserResponse:
     return UserResponse(
         id=user.id,
         username=user.username,
+        full_name=user.full_name,
         role=normalize_role(user.role),  # type: ignore[arg-type]
         must_change_password=user.must_change_password,
         is_active=user.is_active,
@@ -46,6 +48,7 @@ async def create_user(
 
     user = User(
         username=payload.username,
+        full_name=payload.full_name,
         password_hash=hash_password(payload.password),
         role=payload.role,
         must_change_password=True,
@@ -88,6 +91,15 @@ async def update_user(
             raise HTTPException(status_code=400, detail="Username already exists")
         user.username = new_username
 
+    if "full_name" in update_data:
+        user.full_name = update_data["full_name"]
+        linked_employee = await db.execute(
+            select(Employee).where(Employee.user_id == user.id).limit(1)
+        )
+        employee = linked_employee.scalar_one_or_none()
+        if employee is not None:
+            employee.full_name = update_data["full_name"]
+
     if "role" in update_data:
         if admin.get("sub") == user.username and update_data["role"] != "admin":
             raise HTTPException(status_code=400, detail="Cannot remove admin role from yourself")
@@ -97,6 +109,12 @@ async def update_user(
         if admin.get("sub") == user.username and not update_data["is_active"]:
             raise HTTPException(status_code=400, detail="Cannot deactivate yourself")
         user.is_active = update_data["is_active"]
+        linked_employee = await db.execute(
+            select(Employee).where(Employee.user_id == user.id).limit(1)
+        )
+        employee = linked_employee.scalar_one_or_none()
+        if employee is not None:
+            employee.is_active = update_data["is_active"]
 
     if "password" in update_data:
         user.password_hash = hash_password(update_data["password"])
@@ -133,6 +151,13 @@ async def delete_user(
         )
         if admin_count_result.scalar_one() <= 1:
             raise HTTPException(status_code=400, detail="Cannot delete the last active admin")
+
+    linked_employee = await db.execute(select(Employee).where(Employee.user_id == user_id).limit(1))
+    if linked_employee.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Нельзя удалить учётную запись, связанную с сотрудником. Удалите сотрудника.",
+        )
 
     response = _to_response(user)
     await db.delete(user)

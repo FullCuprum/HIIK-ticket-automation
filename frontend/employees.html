@@ -53,6 +53,9 @@
                         x-text="employee.is_active ? 'Активен' : 'Неактивен'"></span>
                 </div>
                 <p class="text-sm text-slate-600" x-text="employee.position"></p>
+                <p class="text-sm text-slate-600" x-show="employee.user_username">
+                  Учётная запись: <span x-text="employee.user_username"></span>
+                </p>
                 <p class="text-sm text-slate-600">
                   Рабочее время:
                   <span x-text="employee.work_start_hour + ':00 - ' + employee.work_end_hour + ':00'"></span>
@@ -141,11 +144,21 @@
             <input x-model="form.email" type="email" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
           </div>
 
-          <div class="md:col-span-2 flex flex-wrap gap-3 pt-2">
-            <button type="submit" :disabled="saving" class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
-              <span x-text="saving ? 'Сохранение...' : 'Сохранить'"></span>
+          <div class="md:col-span-2 flex flex-wrap items-center justify-between gap-3 pt-2">
+            <button
+              type="button"
+              x-show="editingId"
+              @click="deleteEmployee()"
+              :disabled="saving"
+              class="rounded-xl border border-red-200 px-5 py-2.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-60">
+              Удалить сотрудника
             </button>
-            <button type="button" @click="showForm = false" class="rounded-xl border border-slate-300 px-5 py-2.5 text-sm hover:bg-slate-50">Отмена</button>
+            <div class="flex flex-wrap gap-3" :class="editingId ? '' : 'ml-auto'">
+              <button type="submit" :disabled="saving" class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
+                <span x-text="saving ? 'Сохранение...' : 'Сохранить'"></span>
+              </button>
+              <button type="button" @click="showForm = false" class="rounded-xl border border-slate-300 px-5 py-2.5 text-sm hover:bg-slate-50">Отмена</button>
+            </div>
           </div>
         </form>
       </div>
@@ -153,6 +166,6 @@
   </main>
 
   <script src="static/app.js?v=8"></script>
-  <script src="static/employees.js?v=2"></script>
+  <script src="static/employees.js?v=4"></script>
 </body>
 </html>

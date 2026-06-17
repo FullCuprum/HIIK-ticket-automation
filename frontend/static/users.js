@@ -8,6 +8,7 @@ document.addEventListener("alpine:init", () => {
     editingId: null,
     form: {
       username: "",
+      full_name: "",
       password: "",
       role: "user",
       is_active: true,
@@ -25,6 +26,7 @@ document.addEventListener("alpine:init", () => {
     resetForm() {
       this.form = {
         username: "",
+        full_name: "",
         password: "",
         role: "user",
         is_active: true,
@@ -41,6 +43,7 @@ document.addEventListener("alpine:init", () => {
       this.editingId = user.id;
       this.form = {
         username: user.username,
+        full_name: user.full_name || "",
         password: "",
         role: user.role,
         is_active: user.is_active,
@@ -64,6 +67,7 @@ document.addEventListener("alpine:init", () => {
     buildPayload() {
       const payload = {
         username: this.form.username.trim(),
+        full_name: this.form.full_name.trim(),
         role: this.form.role,
       };
 

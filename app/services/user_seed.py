@@ -9,18 +9,21 @@ DEMO_USERS = [
         "username": "admin",
         "password": "admin",
         "role": "admin",
+        "full_name": "Администратор",
         "must_change_password": False,
     },
     {
         "username": "employee",
         "password": "employee",
         "role": "employee",
+        "full_name": "Иванов Иван Иванович",
         "must_change_password": False,
     },
     {
         "username": "user",
         "password": "user",
         "role": "user",
+        "full_name": "Пользователь",
         "must_change_password": False,
     },
 ]
@@ -34,11 +37,14 @@ async def ensure_demo_users(db: AsyncSession) -> None:
         if existing is not None:
             if existing.role == "manager":
                 existing.role = "admin"
+            if not existing.full_name:
+                existing.full_name = demo_user["full_name"]
             continue
 
         db.add(
             User(
                 username=demo_user["username"],
+                full_name=demo_user["full_name"],
                 password_hash=hash_password(demo_user["password"]),
                 role=demo_user["role"],
                 must_change_password=demo_user["must_change_password"],
