@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Расписание</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-800">
+  <div id="app-nav" data-active="schedule"></div>
+
+  <main class="mx-auto max-w-6xl px-4 py-8" x-data="schedulePage" x-init="init()">
+    <section class="rounded-2xl bg-white p-6 shadow-sm">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 class="text-2xl font-semibold text-slate-900">Расписание на сегодня</h2>
+          <p class="mt-1 text-sm text-slate-500">Задачи отдела инфотелекоммуникаций</p>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <input
+            type="number"
+            x-model="employeeId"
+            placeholder="ID сотрудника"
+            class="rounded-xl border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100">
+          <button
+            @click="loadSchedule()"
+            :disabled="loading"
+            class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
+            Обновить
+          </button>
+        </div>
+      </div>
+
+      <p x-show="error" x-text="error" class="mt-4 text-sm text-red-600"></p>
+
+      <div class="mt-6 overflow-x-auto">
+        <table class="min-w-full text-left text-sm">
+          <thead class="border-b border-slate-200 text-slate-500">
+            <tr>
+              <th class="px-3 py-3">Время</th>
+              <th class="px-3 py-3">Описание</th>
+              <th class="px-3 py-3">Кабинет</th>
+              <th class="px-3 py-3">Исполнитель</th>
+              <th class="px-3 py-3">Тип слота</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="item in items" :key="item.id">
+              <tr class="border-b border-slate-100 hover:bg-slate-50">
+                <td class="px-3 py-3 whitespace-nowrap" x-text="formatDateTime(item.start_time) + ' - ' + formatDateTime(item.end_time)"></td>
+                <td class="px-3 py-3" x-text="item.description || '—'"></td>
+                <td class="px-3 py-3" x-text="item.location || '—'"></td>
+                <td class="px-3 py-3" x-text="item.employee_name"></td>
+                <td class="px-3 py-3" x-text="item.slot_type"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <p x-show="!loading && items.length === 0" class="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+        На сегодня задач в расписании нет.
+      </p>
+    </section>
+  </main>
+
+  <script src="static/app.js?v=3"></script>
+  <script src="static/schedule.js"></script>
+</body>
+</html>

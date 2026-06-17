@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Вход</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-800">
+  <div id="app-nav" data-active=""></div>
+
+  <main class="mx-auto flex min-h-[70vh] max-w-md items-center px-4 py-8" x-data="loginPage()">
+    <section class="w-full rounded-2xl bg-white p-6 shadow-sm">
+      <h2 class="text-2xl font-semibold text-slate-900">Вход в систему</h2>
+      <p class="mt-2 text-sm text-slate-500">Демо-пользователи: user/user, employee/employee, admin/admin</p>
+
+      <form class="mt-6 space-y-4" @submit.prevent="login()">
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700" for="username">Логин</label>
+          <input
+            id="username"
+            x-model="username"
+            type="text"
+            class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            placeholder="user">
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700" for="password">Пароль</label>
+          <input
+            id="password"
+            x-model="password"
+            type="password"
+            class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            placeholder="user">
+        </div>
+
+        <button
+          type="submit"
+          :disabled="loading"
+          class="w-full rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
+          <span x-text="loading ? 'Вход...' : 'Войти'"></span>
+        </button>
+      </form>
+
+      <p x-show="error" x-text="error" class="mt-4 text-sm text-red-600"></p>
+    </section>
+  </main>
+
+  <script src="static/app.js?v=3"></script>
+  <script>
+    function loginPage() {
+      return {
+        username: "",
+        password: "",
+        loading: false,
+        error: "",
+        async login() {
+          this.error = "";
+          this.loading = true;
+          try {
+            const data = await apiRequest("/auth/login", "POST", {
+              username: this.username,
+              password: this.password,
+            });
+            saveAuth(data);
+            showToast("Вход выполнен", "success");
+            const role = normalizeRole(data.role, data.username);
+            if (role === "manager") {
+              window.location.href = "employees.html";
+            } else if (role === "employee") {
+              window.location.href = "schedule.html";
+            } else {
+              window.location.href = "index.html";
+            }
+          } catch (error) {
+            this.error = error.message;
+            showToast(this.error, "error");
+          } finally {
+            this.loading = false;
+          }
+        },
+      };
+    }
+  </script>
+</body>
+</html>

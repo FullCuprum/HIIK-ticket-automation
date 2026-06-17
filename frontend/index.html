@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Подача заявки</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-800">
+  <div id="app-nav" data-active="index"></div>
+
+  <main class="mx-auto max-w-4xl px-4 py-8" x-data="ticketPage">
+    <section class="rounded-2xl bg-white p-6 shadow-sm">
+      <h2 class="text-2xl font-semibold text-slate-900">Подача заявки в отдел инфотелекоммуникаций</h2>
+      <p class="mt-2 text-sm text-slate-500">Опишите проблему в свободной форме. Система извлечёт параметры и при необходимости задаст уточняющие вопросы.</p>
+
+      <div class="mt-6 space-y-4">
+        <label class="block text-sm font-medium text-slate-700" for="rawText">Текст заявки</label>
+        <textarea
+          id="rawText"
+          x-model="rawText"
+          rows="6"
+          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          placeholder="Например: Срочно! Не работает интернет в ауд. 214"></textarea>
+
+        <div class="flex flex-wrap gap-3">
+          <button
+            @click="submitTicket()"
+            :disabled="loading"
+            class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+            <span x-text="loading ? 'Отправка...' : 'Отправить'"></span>
+          </button>
+        </div>
+
+        <p x-show="error" x-text="error" class="text-sm text-red-600"></p>
+      </div>
+    </section>
+
+    <section x-show="ticketId" class="fade-in mt-6 rounded-2xl bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 class="text-lg font-semibold">Статус заявки #<span x-text="ticketId"></span></h3>
+          <p class="text-sm text-slate-500">Текущий статус: <span class="font-medium" x-text="status"></span></p>
+        </div>
+        <span
+          class="rounded-full px-3 py-1 text-xs font-semibold"
+          :class="isReady ? 'bg-emerald-100 text-emerald-700' : (isClarification ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700')"
+          x-text="isReady ? 'Готова к планированию' : (isClarification ? 'Нужно уточнение' : status)">
+        </span>
+      </div>
+
+      <div x-show="isClarification" class="mt-6 space-y-4">
+        <div class="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
+          <p class="font-medium">Требуется уточнение</p>
+          <ul class="mt-2 list-disc pl-5">
+            <template x-for="question in questions" :key="question">
+              <li x-text="question"></li>
+            </template>
+          </ul>
+        </div>
+
+        <template x-for="field in missingFields" :key="field">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" x-text="fieldLabel(field)"></label>
+            <input
+              type="text"
+              x-model="answers[field]"
+              class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              :placeholder="fieldLabel(field)">
+          </div>
+        </template>
+
+        <button
+          @click="submitAnswers()"
+          :disabled="loading"
+          class="rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-60">
+          Отправить ответ
+        </button>
+      </div>
+
+      <div x-show="isReady" class="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+        Заявка готова к планированию.
+      </div>
+
+      <div class="mt-6 grid gap-4 md:grid-cols-2">
+        <div class="rounded-xl bg-slate-50 p-4">
+          <p class="text-xs uppercase text-slate-500">Кабинет</p>
+          <p class="mt-1 font-medium" x-text="extracted.location || '—'"></p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-4">
+          <p class="text-xs uppercase text-slate-500">Тип заявки</p>
+          <p class="mt-1 font-medium" x-text="ticketTypeLabel(extracted.ticket_type)"></p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-4 md:col-span-2">
+          <p class="text-xs uppercase text-slate-500">Описание проблемы</p>
+          <p class="mt-1 font-medium" x-text="extracted.problem_description || '—'"></p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-4">
+          <p class="text-xs uppercase text-slate-500">Срочность</p>
+          <p class="mt-1 font-medium" x-text="priorityLabel(extracted.priority)"></p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-4">
+          <p class="text-xs uppercase text-slate-500">Время выполнения</p>
+          <p class="mt-1 font-medium" x-text="extracted.estimated_minutes ? extracted.estimated_minutes + ' мин' : '—'"></p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-4 md:col-span-2">
+          <p class="text-xs uppercase text-slate-500">Требуемый навык</p>
+          <p class="mt-1 font-medium" x-text="extracted.required_skill || '—'"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="static/app.js?v=3"></script>
+  <script src="static/tickets.js"></script>
+</body>
+</html>

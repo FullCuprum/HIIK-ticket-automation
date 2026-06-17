@@ -15,6 +15,7 @@ from app.schemas.ticket import (
 )
 from app.services.clarification import ClarificationService
 from app.services.parser import get_ticket_parser
+from app.services.scheduler import schedule_ticket
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -91,6 +92,16 @@ def _filter_answers(answers: dict[str, Any], missing_fields: list[str]) -> dict[
     return filtered
 
 
+async def _finalize_ready_ticket(db: AsyncSession, ticket: Ticket) -> None:
+    """Создаёт слот расписания и предложение на утверждение."""
+    result = await schedule_ticket(db, ticket)
+    if result is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Ticket is ready, but scheduling failed due to missing employees.",
+        )
+
+
 @router.post("/", response_model=TicketResponse)
 async def create_ticket(
     ticket_data: TicketCreate,
@@ -132,6 +143,7 @@ async def create_ticket(
             ) from exc
     else:
         ticket.status = "ready_for_scheduling"
+        await _finalize_ready_ticket(db, ticket)
 
     try:
         await db.commit()
@@ -196,6 +208,7 @@ async def clarify_ticket(
 
     if not missing_fields:
         ticket.status = "ready_for_scheduling"
+        await _finalize_ready_ticket(db, ticket)
         try:
             await clarification_service.delete_session(ticket_id)
         except RuntimeError as exc:

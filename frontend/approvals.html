@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Утверждение расписания</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-800">
+  <div id="app-nav" data-active="approvals"></div>
+
+  <main class="mx-auto max-w-6xl px-4 py-8" x-data="approvalsPage" x-init="init()">
+    <section class="rounded-2xl bg-white p-6 shadow-sm">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 class="text-2xl font-semibold text-slate-900">Панель утверждения</h2>
+          <p class="mt-1 text-sm text-slate-500">Предложения по изменениям в расписании</p>
+        </div>
+        <button
+          @click="loadApprovals()"
+          :disabled="loading"
+          class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
+          Обновить
+        </button>
+      </div>
+
+      <div class="mt-4">
+        <label class="mb-1 block text-sm font-medium text-slate-700">Комментарий начальника</label>
+        <input
+          type="text"
+          x-model="comment"
+          class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          placeholder="Необязательный комментарий к решению">
+      </div>
+
+      <p x-show="error" x-text="error" class="mt-4 text-sm text-red-600"></p>
+
+      <div class="mt-6 grid gap-4">
+        <template x-for="item in items" :key="item.id">
+          <article class="rounded-2xl border border-slate-200 p-5 shadow-sm">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div class="space-y-2">
+                <p class="text-sm text-slate-500">Заявка #<span x-text="item.ticket_id"></span> · Предложение #<span x-text="item.id"></span></p>
+                <h3 class="text-lg font-semibold text-slate-900" x-text="item.description || 'Без описания'"></h3>
+                <p class="text-sm text-slate-600">Кабинет: <span x-text="item.location || '—'"></span></p>
+                <p class="text-sm text-slate-600">Исполнитель: <span x-text="item.employee_name || '—'"></span></p>
+                <p class="text-sm text-slate-600">
+                  Время:
+                  <span x-text="formatDateTime(item.start_time)"></span>
+                  -
+                  <span x-text="formatDateTime(item.end_time)"></span>
+                </p>
+              </div>
+              <div class="flex flex-wrap gap-3">
+                <button
+                  @click="approveItem(item.id)"
+                  :disabled="loading"
+                  class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60">
+                  Утвердить
+                </button>
+                <button
+                  @click="rejectItem(item.id)"
+                  :disabled="loading"
+                  class="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60">
+                  Отклонить
+                </button>
+              </div>
+            </div>
+          </article>
+        </template>
+      </div>
+
+      <p x-show="!loading && items.length === 0" class="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+        Нет предложений, ожидающих утверждения.
+      </p>
+    </section>
+  </main>
+
+  <script src="static/app.js?v=3"></script>
+  <script src="static/approvals.js"></script>
+</body>
+</html>

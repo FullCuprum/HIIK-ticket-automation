@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Сотрудники</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-800">
+  <div id="app-nav" data-active="employees"></div>
+
+  <main class="mx-auto max-w-6xl px-4 py-8" x-data="employeesPage" x-init="init()">
+    <section class="rounded-2xl bg-white p-6 shadow-sm">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h2 class="text-2xl font-semibold text-slate-900">Сотрудники отдела</h2>
+          <p class="mt-1 text-sm text-slate-500">Компетенции, рабочее время и загрузка на сегодня</p>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <button @click="loadEmployees()" :disabled="loading" class="rounded-xl border border-slate-300 px-4 py-2.5 text-sm hover:bg-slate-50 disabled:opacity-60">Обновить</button>
+          <button @click="openCreateForm()" class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700">Добавить сотрудника</button>
+        </div>
+      </div>
+
+      <div class="mt-6 grid gap-4 md:grid-cols-3">
+        <div class="rounded-xl bg-slate-50 p-4">
+          <p class="text-xs uppercase text-slate-500">Всего сотрудников</p>
+          <p class="mt-1 text-2xl font-semibold" x-text="items.length"></p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-4">
+          <p class="text-xs uppercase text-slate-500">Активных</p>
+          <p class="mt-1 text-2xl font-semibold" x-text="items.filter(item => item.is_active).length"></p>
+        </div>
+        <div class="rounded-xl bg-blue-50 p-4">
+          <p class="text-xs uppercase text-blue-700">Средняя загрузка</p>
+          <p class="mt-1 text-2xl font-semibold text-blue-900" x-text="averageWorkload + '%'"></p>
+        </div>
+      </div>
+
+      <p x-show="error" x-text="error" class="mt-4 text-sm text-red-600"></p>
+
+      <div class="mt-6 grid gap-4">
+        <template x-for="employee in items" :key="employee.id">
+          <article class="rounded-2xl border border-slate-200 p-5 shadow-sm">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div class="space-y-3">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h3 class="text-lg font-semibold text-slate-900" x-text="employee.full_name"></h3>
+                  <span class="rounded-full px-2.5 py-1 text-xs font-medium"
+                        :class="employee.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'"
+                        x-text="employee.is_active ? 'Активен' : 'Неактивен'"></span>
+                </div>
+                <p class="text-sm text-slate-600" x-text="employee.position"></p>
+                <p class="text-sm text-slate-600">
+                  Рабочее время:
+                  <span x-text="employee.work_start_hour + ':00 - ' + employee.work_end_hour + ':00'"></span>
+                  (<span x-text="employee.work_minutes_per_day"></span> мин/день)
+                </p>
+                <p class="text-sm text-slate-600" x-show="employee.phone">Телефон: <span x-text="employee.phone"></span></p>
+                <p class="text-sm text-slate-600" x-show="employee.email">Email: <span x-text="employee.email"></span></p>
+                <div class="flex flex-wrap gap-2">
+                  <template x-for="skill in employee.skills" :key="skill">
+                    <span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800" x-text="skillLabel(skill)"></span>
+                  </template>
+                </div>
+              </div>
+
+              <div class="min-w-[220px] space-y-3">
+                <div class="rounded-xl bg-slate-50 p-4">
+                  <p class="text-xs uppercase text-slate-500">Загрузка сегодня</p>
+                  <p class="mt-1 text-2xl font-semibold" x-text="employee.workload_percent + '%'"></p>
+                  <p class="mt-1 text-xs text-slate-500">
+                    <span x-text="employee.scheduled_minutes_today"></span> мин из
+                    <span x-text="employee.work_minutes_per_day"></span> мин
+                  </p>
+                  <p class="mt-1 text-xs text-slate-500">Задач: <span x-text="employee.tasks_today"></span></p>
+                  <span class="mt-3 inline-block rounded-full px-2.5 py-1 text-xs font-medium"
+                        :class="workloadClass(employee.workload_percent)"
+                        x-text="employee.workload_percent >= 85 ? 'Высокая' : (employee.workload_percent >= 60 ? 'Средняя' : 'Низкая')"></span>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button @click="openEditForm(employee)" class="rounded-xl border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50">Редактировать</button>
+                  <button x-show="employee.is_active" @click="deactivateEmployee(employee.id)" class="rounded-xl border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">Деактивировать</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        </template>
+      </div>
+
+      <p x-show="!loading && items.length === 0" class="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+        Сотрудники не найдены.
+      </p>
+    </section>
+
+    <section x-show="showForm" x-transition class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
+      <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xl font-semibold" x-text="editingId ? 'Редактирование сотрудника' : 'Новый сотрудник'"></h3>
+          <button @click="showForm = false" class="text-slate-500 hover:text-slate-700">✕</button>
+        </div>
+
+        <form class="mt-6 grid gap-4 md:grid-cols-2" @submit.prevent="saveEmployee()">
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-sm font-medium">ФИО</label>
+            <input x-model="form.full_name" required class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
+          </div>
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-sm font-medium">Должность</label>
+            <input x-model="form.position" required class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
+          </div>
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-sm font-medium">Компетенции (через запятую)</label>
+            <input x-model="form.skillsText" placeholder="network_engineer, software_admin" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
+            <p class="mt-1 text-xs text-slate-500">Доступные: <span x-text="skillOptions.join(', ')"></span></p>
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium">Начало рабочего дня</label>
+            <input x-model.number="form.work_start_hour" type="number" min="0" max="23" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium">Конец рабочего дня</label>
+            <input x-model.number="form.work_end_hour" type="number" min="1" max="24" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium">Макс. параллельных задач</label>
+            <input x-model.number="form.max_parallel_tasks" type="number" min="1" max="10" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
+          </div>
+          <div class="flex items-center gap-2 pt-7">
+            <input x-model="form.is_active" type="checkbox" id="is_active" class="h-4 w-4 rounded border-slate-300">
+            <label for="is_active" class="text-sm">Активен</label>
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium">Телефон</label>
+            <input x-model="form.phone" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium">Email</label>
+            <input x-model="form.email" type="email" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
+          </div>
+
+          <div class="md:col-span-2 flex flex-wrap gap-3 pt-2">
+            <button type="submit" :disabled="saving" class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
+              <span x-text="saving ? 'Сохранение...' : 'Сохранить'"></span>
+            </button>
+            <button type="button" @click="showForm = false" class="rounded-xl border border-slate-300 px-5 py-2.5 text-sm hover:bg-slate-50">Отмена</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <script src="static/app.js?v=3"></script>
+  <script src="static/employees.js?v=2"></script>
+</body>
+</html>
