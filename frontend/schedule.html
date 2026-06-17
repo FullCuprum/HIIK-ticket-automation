@@ -60,22 +60,39 @@
             <tr>
               <th class="px-3 py-3">Время</th>
               <th class="px-3 py-3">Описание</th>
+              <th class="px-3 py-3">Здание</th>
               <th class="px-3 py-3">Кабинет</th>
               <th class="px-3 py-3">Исполнитель</th>
+              <th class="px-3 py-3">Статус</th>
               <th class="px-3 py-3">Тип слота</th>
               <th class="px-3 py-3"></th>
             </tr>
           </thead>
           <tbody>
             <template x-for="item in items" :key="item.id">
-              <tr class="border-b border-slate-100 hover:bg-slate-50">
+              <tr class="border-b border-slate-100 hover:bg-slate-50" :class="item.ticket_status === 'completed' ? 'bg-emerald-50/60' : ''">
                 <td class="px-3 py-3 whitespace-nowrap" x-text="formatDateTime(item.start_time) + ' - ' + formatDateTime(item.end_time)"></td>
                 <td class="px-3 py-3" x-text="item.description || '—'"></td>
+                <td class="px-3 py-3" x-text="buildingLabel(item.building)"></td>
                 <td class="px-3 py-3" x-text="item.location || '—'"></td>
                 <td class="px-3 py-3" x-text="item.employee_name"></td>
+                <td class="px-3 py-3">
+                  <span class="rounded-full px-2.5 py-1 text-xs font-medium"
+                        :class="item.ticket_status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'"
+                        x-text="statusLabel(item.ticket_status)"></span>
+                </td>
                 <td class="px-3 py-3" x-text="item.slot_type"></td>
                 <td class="px-3 py-3">
-                  <button @click="openDetails(item)" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50">Подробнее</button>
+                  <div class="flex flex-wrap gap-2">
+                    <button @click="openDetails(item)" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50">Подробнее</button>
+                    <button
+                      x-show="item.can_complete"
+                      @click="completeTicket(item)"
+                      :disabled="completingId === item.id"
+                      class="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs text-emerald-700 hover:bg-emerald-50 disabled:opacity-60">
+                      Выполнена
+                    </button>
+                  </div>
                 </td>
               </tr>
             </template>
@@ -93,17 +110,45 @@
           <button @click="showDetails = false" class="text-slate-500 hover:text-slate-700">✕</button>
         </div>
         <template x-if="detailsItem">
-          <div class="mt-4 space-y-3">
-            <p class="text-sm text-slate-600">Автор: <span class="font-medium" x-text="formatAuthor(detailsItem.creator_username)"></span></p>
-            <p class="text-sm font-medium text-slate-700">Исходный текст заявки</p>
-            <p class="whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-sm text-slate-800" x-text="detailsItem.raw_text"></p>
+          <div class="mt-4 space-y-4 text-sm">
+            <div class="grid gap-3 sm:grid-cols-2">
+              <p><span class="text-slate-500">Автор:</span> <span class="font-medium" x-text="formatAuthor(detailsItem.creator_username)"></span></p>
+              <p><span class="text-slate-500">Исполнитель:</span> <span class="font-medium" x-text="detailsItem.employee_name || '—'"></span></p>
+              <p><span class="text-slate-500">Время:</span>
+                <span x-text="formatDateTime(detailsItem.start_time) + ' — ' + formatDateTime(detailsItem.end_time)"></span>
+              </p>
+              <p><span class="text-slate-500">Здание:</span> <span x-text="buildingLabel(detailsItem.building)"></span></p>
+              <p><span class="text-slate-500">Кабинет:</span> <span x-text="detailsItem.location || '—'"></span></p>
+              <p><span class="text-slate-500">Статус:</span> <span class="font-medium" x-text="statusLabel(detailsItem.ticket_status)"></span></p>
+              <p x-show="detailsItem.completed_at"><span class="text-slate-500">Выполнена:</span> <span x-text="formatDateTime(detailsItem.completed_at)"></span></p>
+            </div>
+            <div>
+              <p class="mb-2 font-medium text-slate-700">Описание</p>
+              <p class="rounded-xl bg-slate-50 p-4 text-slate-800" x-text="detailsItem.description || '—'"></p>
+            </div>
+            <div>
+              <p class="mb-2 font-medium text-slate-700">Исходный текст заявки</p>
+              <p class="whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-slate-800" x-text="detailsItem.raw_text"></p>
+            </div>
+            <div x-show="detailsItem.manager_comment" class="rounded-xl bg-blue-50 p-4">
+              <p class="text-xs uppercase text-blue-700" x-text="managerCommentLabel(detailsItem.approval_status)"></p>
+              <p class="mt-2 whitespace-pre-wrap text-sm text-blue-900" x-text="detailsItem.manager_comment"></p>
+            </div>
+            <div x-show="detailsItem.can_complete" class="flex flex-wrap gap-3 pt-2">
+              <button
+                @click="completeTicket(detailsItem)"
+                :disabled="completingId === detailsItem.id"
+                class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60">
+                <span x-text="completingId === detailsItem.id ? 'Сохранение...' : 'Отметить выполненной'"></span>
+              </button>
+            </div>
           </div>
         </template>
       </div>
     </section>
   </main>
 
-  <script src="static/app.js?v=8"></script>
-  <script src="static/schedule.js?v=3"></script>
+  <script src="static/app.js?v=10"></script>
+  <script src="static/schedule.js?v=5"></script>
 </body>
 </html>

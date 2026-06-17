@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 SESSION_TTL_SECONDS = 24 * 60 * 60
 
 REQUIRED_FIELDS = (
+    "building",
     "location",
     "problem_description",
     "ticket_type",
@@ -24,6 +25,7 @@ REQUIRED_FIELDS = (
 )
 
 FIELD_QUESTIONS: dict[str, str] = {
+    "building": "Укажите здание: первый корпус, второй корпус, общежитие 1 или общежитие 2.",
     "location": "Укажите номер кабинета, где возникла проблема.",
     "problem_description": "Опишите подробнее, в чём заключается проблема.",
     "ticket_type": "Уточните тип заявки: ремонт, установка ПО или сопровождение мероприятия.",
@@ -48,6 +50,7 @@ class ClarificationService:
     def normalize_extracted(extracted: dict[str, Any]) -> dict[str, Any]:
         """Приводит extracted к единому набору обязательных полей."""
         return {
+            "building": extracted.get("building"),
             "location": extracted.get("location"),
             "problem_description": extracted.get("problem_description"),
             "ticket_type": extracted.get("ticket_type"),
@@ -220,6 +223,7 @@ class ClarificationService:
     @staticmethod
     def _field_label(field: str) -> str:
         labels = {
+            "building": "здание",
             "location": "номер кабинета",
             "problem_description": "описание проблемы",
             "ticket_type": "тип заявки",

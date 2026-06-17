@@ -14,6 +14,17 @@ async def get_optional_username(authorization: str | None = Header(default=None)
     return payload.get("sub")
 
 
+async def get_optional_auth(authorization: str | None = Header(default=None)) -> dict | None:
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+
+    payload = decode_access_token(authorization.removeprefix("Bearer ").strip())
+    if payload is None or not payload.get("sub"):
+        return None
+
+    return payload
+
+
 async def require_auth(authorization: str | None = Header(default=None)) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authorization required")

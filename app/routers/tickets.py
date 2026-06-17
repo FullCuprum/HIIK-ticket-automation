@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
 from app.db.redis_client import get_clarification_service
+from app.models.approval import Approval
+from app.models.schedule import Schedule
 from app.models.ticket import Ticket
 from app.schemas.ticket import (
     ClarificationRequest,
@@ -16,6 +18,7 @@ from app.schemas.ticket import (
     TicketJournalItem,
     TicketResponse,
 )
+from app.services.buildings import BUILDINGS, normalize_building
 from app.services.clarification import ClarificationService
 from app.services.parser import get_ticket_parser
 from app.services.scheduler import schedule_ticket
@@ -26,6 +29,7 @@ from app.utils.deps import get_optional_username, require_auth
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
 ALLOWED_ANSWER_FIELDS = {
+    "building",
     "location",
     "problem_description",
     "ticket_type",
@@ -51,6 +55,7 @@ def _parse_event_datetime(value: Any) -> datetime | None:
 
 def _parsed_to_extracted(parsed: dict[str, Any]) -> dict[str, Any]:
     return {
+        "building": parsed.get("building"),
         "location": parsed.get("location"),
         "problem_description": parsed.get("problem_description"),
         "ticket_type": parsed.get("ticket_type"),
@@ -63,6 +68,7 @@ def _parsed_to_extracted(parsed: dict[str, Any]) -> dict[str, Any]:
 
 def _apply_extracted_to_ticket(ticket: Ticket, extracted: dict[str, Any]) -> None:
     ticket.extracted_location = extracted.get("location")
+    ticket.extracted_building = extracted.get("building")
     ticket.extracted_problem = extracted.get("problem_description")
     ticket.ticket_type = extracted.get("ticket_type")
     ticket.priority = extracted.get("priority", "low")
@@ -86,6 +92,7 @@ def _build_ticket_response(
         missing_fields=missing_fields,
         questions=questions or [],
         extracted_location=ticket.extracted_location,
+        extracted_building=ticket.extracted_building,
         extracted_problem=ticket.extracted_problem,
         ticket_type=ticket.ticket_type,
         priority=ticket.priority,
@@ -98,6 +105,14 @@ def _build_ticket_response(
 def _normalize_answer_value(field: str, value: Any) -> Any:
     if field == "estimated_minutes":
         return int(value)
+    if field == "building":
+        normalized = normalize_building(str(value))
+        if normalized is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Укажите одно из зданий: первый корпус, второй корпус, общежитие 1 или общежитие 2.",
+            )
+        return normalized
     if field == "event_datetime":
         parsed = _parse_event_datetime(value)
         if parsed is None:
@@ -130,8 +145,35 @@ async def _finalize_ready_ticket(db: AsyncSession, ticket: Ticket) -> None:
         )
 
 
-def _build_journal_item(ticket: Ticket) -> TicketJournalItem:
-    return TicketJournalItem.model_validate(ticket)
+def _build_journal_item(
+    ticket: Ticket,
+    *,
+    approval_status: str | None = None,
+    manager_comment: str | None = None,
+) -> TicketJournalItem:
+    return TicketJournalItem(
+        id=ticket.id,
+        raw_text=ticket.raw_text,
+        status=ticket.status,
+        created_at=ticket.created_at,
+        updated_at=ticket.updated_at,
+        creator_username=ticket.creator_username,
+        extracted_location=ticket.extracted_location,
+        extracted_building=ticket.extracted_building,
+        extracted_problem=ticket.extracted_problem,
+        ticket_type=ticket.ticket_type,
+        priority=ticket.priority,
+        estimated_minutes=ticket.estimated_minutes,
+        event_datetime=ticket.event_datetime,
+        completed_at=ticket.completed_at,
+        approval_status=approval_status,
+        manager_comment=manager_comment,
+    )
+
+
+@router.get("/buildings", response_model=dict[str, str])
+async def list_buildings() -> dict[str, str]:
+    return BUILDINGS
 
 
 @router.get("/journal/authors", response_model=list[str])
@@ -176,7 +218,9 @@ async def list_ticket_journal(
     _, range_end = local_day_range(period_to)
 
     query = (
-        select(Ticket)
+        select(Ticket, Approval.status, Approval.manager_comment)
+        .outerjoin(Schedule, Schedule.ticket_id == Ticket.id)
+        .outerjoin(Approval, Approval.proposed_schedule_id == Schedule.id)
         .where(
             Ticket.created_at >= range_start,
             Ticket.created_at < range_end,
@@ -190,7 +234,14 @@ async def list_ticket_journal(
         query = query.where(Ticket.creator_username == creator_username.strip())
 
     result = await db.execute(query)
-    return [_build_journal_item(ticket) for ticket in result.scalars().all()]
+    return [
+        _build_journal_item(
+            ticket,
+            approval_status=approval_status,
+            manager_comment=manager_comment if role == "admin" else None,
+        )
+        for ticket, approval_status, manager_comment in result.all()
+    ]
 
 
 @router.post("/", response_model=TicketResponse)

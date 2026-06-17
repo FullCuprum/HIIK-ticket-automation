@@ -57,7 +57,8 @@
               <th class="px-3 py-3">№</th>
               <th class="px-3 py-3">Дата</th>
               <th class="px-3 py-3" x-show="isAdmin">Автор</th>
-              <th class="px-3 py-3">Описание</th>
+              <th class="w-[10rem] max-w-[10rem] px-3 py-3">Описание</th>
+              <th class="px-3 py-3">Здание</th>
               <th class="px-3 py-3">Кабинет</th>
               <th class="px-3 py-3">Тип</th>
               <th class="px-3 py-3">Статус</th>
@@ -70,11 +71,14 @@
                 <td class="px-3 py-3 font-medium" x-text="item.id"></td>
                 <td class="px-3 py-3 whitespace-nowrap" x-text="formatDateTime(item.created_at)"></td>
                 <td class="px-3 py-3" x-show="isAdmin" x-text="formatAuthor(item.creator_username)"></td>
-                <td class="px-3 py-3 max-w-xs truncate" x-text="descriptionPreview(item)"></td>
+                <td class="w-[10rem] max-w-[10rem] px-3 py-3 align-top whitespace-normal break-words leading-snug" x-text="descriptionPreview(item)"></td>
+                <td class="px-3 py-3" x-text="buildingLabel(item.extracted_building)"></td>
                 <td class="px-3 py-3" x-text="item.extracted_location || '—'"></td>
                 <td class="px-3 py-3" x-text="ticketTypeLabel(item.ticket_type)"></td>
                 <td class="px-3 py-3">
-                  <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700" x-text="statusLabel(item.status)"></span>
+                  <span class="rounded-full px-2.5 py-1 text-xs font-medium"
+                        :class="item.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'"
+                        x-text="statusLabel(item.status)"></span>
                 </td>
                 <td class="px-3 py-3">
                   <button @click="openDetails(item)" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50">Подробнее</button>
@@ -101,6 +105,7 @@
               <p><span class="text-slate-500">Статус:</span> <span class="font-medium" x-text="statusLabel(detailsItem.status)"></span></p>
               <p><span class="text-slate-500">Создана:</span> <span x-text="formatDateTime(detailsItem.created_at)"></span></p>
               <p><span class="text-slate-500">Обновлена:</span> <span x-text="formatDateTime(detailsItem.updated_at)"></span></p>
+              <p><span class="text-slate-500">Здание:</span> <span x-text="buildingLabel(detailsItem.extracted_building)"></span></p>
               <p><span class="text-slate-500">Кабинет:</span> <span x-text="detailsItem.extracted_location || '—'"></span></p>
               <p><span class="text-slate-500">Тип:</span> <span x-text="ticketTypeLabel(detailsItem.ticket_type)"></span></p>
               <p><span class="text-slate-500">Срочность:</span> <span x-text="priorityLabel(detailsItem.priority)"></span></p>
@@ -109,10 +114,18 @@
                 <span class="text-slate-500">Дата и время мероприятия:</span>
                 <span x-text="detailsItem.event_datetime ? formatDateTime(detailsItem.event_datetime) : '—'"></span>
               </p>
+              <p x-show="detailsItem.completed_at">
+                <span class="text-slate-500">Выполнена:</span>
+                <span x-text="formatDateTime(detailsItem.completed_at)"></span>
+              </p>
             </div>
             <div>
               <p class="mb-2 font-medium text-slate-700">Исходный текст заявки</p>
               <p class="whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-slate-800" x-text="detailsItem.raw_text"></p>
+            </div>
+            <div x-show="isAdmin && detailsItem.manager_comment" class="rounded-xl bg-blue-50 p-4">
+              <p class="text-xs uppercase text-blue-700" x-text="managerCommentLabel(detailsItem.approval_status)"></p>
+              <p class="mt-2 whitespace-pre-wrap text-sm text-blue-900" x-text="detailsItem.manager_comment"></p>
             </div>
           </div>
         </template>
@@ -120,7 +133,7 @@
     </section>
   </main>
 
-  <script src="static/app.js?v=8"></script>
-  <script src="static/journal.js?v=1"></script>
+  <script src="static/app.js?v=10"></script>
+  <script src="static/journal.js?v=2"></script>
 </body>
 </html>

@@ -7,6 +7,7 @@ document.addEventListener("alpine:init", () => {
     questions: [],
     answers: {},
     extracted: {},
+    buildingOptions: Object.entries(BUILDING_LABELS).map(([value, label]) => ({ value, label })),
     loading: false,
     error: "",
 
@@ -20,6 +21,10 @@ document.addEventListener("alpine:init", () => {
 
     fieldLabel(field) {
       return FIELD_LABELS[field] || field;
+    },
+
+    buildingLabel(value) {
+      return buildingLabel(value);
     },
 
     ticketTypeLabel(value) {
@@ -43,6 +48,7 @@ document.addEventListener("alpine:init", () => {
       this.missingFields = data.missing_fields || [];
       this.questions = data.questions || [];
       this.extracted = {
+        building: data.extracted_building,
         location: data.extracted_location,
         problem_description: data.extracted_problem,
         ticket_type: data.ticket_type,

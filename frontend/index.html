@@ -65,11 +65,20 @@
           <div>
             <label class="mb-1 block text-sm font-medium text-slate-700" x-text="fieldLabel(field)"></label>
             <input
-              x-show="field !== 'event_datetime'"
+              x-show="field !== 'event_datetime' && field !== 'building'"
               type="text"
               x-model="answers[field]"
               class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
               :placeholder="fieldLabel(field)">
+            <select
+              x-show="field === 'building'"
+              x-model="answers[field]"
+              class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100">
+              <option value="">Выберите здание</option>
+              <template x-for="option in buildingOptions" :key="option.value">
+                <option :value="option.value" x-text="option.label"></option>
+              </template>
+            </select>
             <input
               x-show="field === 'event_datetime'"
               type="datetime-local"
@@ -91,6 +100,10 @@
       </div>
 
       <div class="mt-6 grid gap-4 md:grid-cols-2">
+        <div class="rounded-xl bg-slate-50 p-4">
+          <p class="text-xs uppercase text-slate-500">Здание</p>
+          <p class="mt-1 font-medium" x-text="buildingLabel(extracted.building)"></p>
+        </div>
         <div class="rounded-xl bg-slate-50 p-4">
           <p class="text-xs uppercase text-slate-500">Кабинет</p>
           <p class="mt-1 font-medium" x-text="extracted.location || '—'"></p>
@@ -123,7 +136,7 @@
     </section>
   </main>
 
-  <script src="static/app.js?v=8"></script>
+  <script src="static/app.js?v=9"></script>
   <script src="static/tickets.js"></script>
 </body>
 </html>

@@ -27,6 +27,14 @@ document.addEventListener("alpine:init", () => {
       return TICKET_TYPE_LABELS[value] || value || "—";
     },
 
+    buildingLabel(value) {
+      return buildingLabel(value);
+    },
+
+    managerCommentLabel(status) {
+      return managerCommentLabel(status);
+    },
+
     priorityLabel(value) {
       return PRIORITY_LABELS[value] || value || "—";
     },

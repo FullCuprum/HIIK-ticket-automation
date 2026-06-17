@@ -35,6 +35,7 @@ from pathlib import Path
 from natasha import Segmenter
 from pymorphy2 import MorphAnalyzer
 
+from app.services.buildings import extract_building
 from app.services.event_support import EVENT_TOTAL_MINUTES, apply_event_support_defaults
 from app.utils.datetime_utils import get_app_timezone, now_local
 
@@ -173,6 +174,10 @@ class TicketParser:
                 return keyword_match.group(1)
 
         return None
+
+    def extract_building(self, text: str) -> str | None:
+        """Извлекает здание из текста заявки."""
+        return extract_building(text)
 
     def extract_problem_description(self, text: str) -> str:
         """Возвращает краткое описание проблемы без служебных фраз."""
@@ -313,6 +318,7 @@ class TicketParser:
         """
         try:
             location = self.extract_location(raw_text)
+            building = self.extract_building(raw_text)
             problem_description = self.extract_problem_description(raw_text)
             ticket_type = self.detect_ticket_type(raw_text)
             priority = self.detect_priority(raw_text, ticket_type)
@@ -322,6 +328,7 @@ class TicketParser:
 
             result = {
                 "location": location,
+                "building": building,
                 "problem_description": problem_description,
                 "ticket_type": ticket_type,
                 "priority": priority,
@@ -333,6 +340,8 @@ class TicketParser:
             result = apply_event_support_defaults(result)
 
             missing_fields: list[str] = []
+            if not building:
+                missing_fields.append("building")
             if not location:
                 missing_fields.append("location")
             if not problem_description.strip():

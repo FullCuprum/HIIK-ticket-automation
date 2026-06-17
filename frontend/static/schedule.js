@@ -5,6 +5,7 @@ document.addEventListener("alpine:init", () => {
     selectedDate: localTodayISO(),
     employeeName: "",
     loading: false,
+    completingId: null,
     error: "",
     refreshTimer: null,
     showDetails: false,
@@ -36,6 +37,42 @@ document.addEventListener("alpine:init", () => {
     openDetails(item) {
       this.detailsItem = item;
       this.showDetails = true;
+    },
+
+    buildingLabel(value) {
+      return buildingLabel(value);
+    },
+
+    managerCommentLabel(status) {
+      return managerCommentLabel(status);
+    },
+
+    statusLabel(status) {
+      return TICKET_STATUS_LABELS[status] || status || "—";
+    },
+
+    async completeTicket(item) {
+      if (!item?.id || !item.can_complete) return;
+      if (!confirm("Отметить заявку как выполненную?")) return;
+
+      this.completingId = item.id;
+      this.error = "";
+      try {
+        const updated = await apiRequest(`/schedule/${item.id}/complete`, "POST");
+        const index = this.items.findIndex((row) => row.id === item.id);
+        if (index >= 0) {
+          this.items[index] = updated;
+        }
+        if (this.detailsItem?.id === item.id) {
+          this.detailsItem = updated;
+        }
+        showToast("Заявка отмечена как выполненная", "success");
+      } catch (error) {
+        this.error = error.message;
+        showToast(this.error, "error");
+      } finally {
+        this.completingId = null;
+      }
     },
 
     async loadEmployees() {

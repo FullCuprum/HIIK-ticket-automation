@@ -2,6 +2,7 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("approvalsPage", () => ({
     items: [],
     employees: [],
+    buildingOptions: Object.entries(BUILDING_LABELS).map(([value, label]) => ({ value, label })),
     loading: false,
     saving: false,
     error: "",
@@ -13,6 +14,7 @@ document.addEventListener("alpine:init", () => {
       id: null,
       description: "",
       location: "",
+      building: "",
       employee_id: "",
       start_time_local: "",
       end_time_local: "",
@@ -55,6 +57,7 @@ document.addEventListener("alpine:init", () => {
         id: item.id,
         description: item.description || "",
         location: item.location || "",
+        building: item.building || "",
         employee_id: String(item.employee_id),
         start_time_local: toDatetimeLocalValue(item.start_time),
         end_time_local: toDatetimeLocalValue(item.end_time),
@@ -69,6 +72,7 @@ document.addEventListener("alpine:init", () => {
         const payload = {
           description: this.editForm.description,
           location: this.editForm.location,
+          building: this.editForm.building || null,
           employee_id: Number(this.editForm.employee_id),
           start_time: fromDatetimeLocalValue(this.editForm.start_time_local),
           end_time: fromDatetimeLocalValue(this.editForm.end_time_local),

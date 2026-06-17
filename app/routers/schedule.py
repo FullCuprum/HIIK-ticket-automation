@@ -18,8 +18,10 @@ from app.schemas.schedule import (
     ScheduleEmployeeOption,
     ScheduleItemResponse,
 )
-from app.utils.datetime_utils import local_day_range, local_today
-from app.utils.deps import require_admin
+from app.services.buildings import normalize_building
+from app.utils.auth import get_user_by_username, normalize_role
+from app.utils.datetime_utils import local_day_range, local_today, now_local
+from app.utils.deps import get_optional_auth, require_auth, require_admin
 
 router = APIRouter(prefix="/schedule", tags=["schedule"])
 
@@ -28,7 +30,14 @@ def _proposal_description(ticket: Ticket) -> str | None:
     return ticket.extracted_problem or ticket.raw_text
 
 
-def _build_schedule_item(schedule: Schedule, ticket: Ticket, employee: Employee) -> ScheduleItemResponse:
+def _build_schedule_item(
+    schedule: Schedule,
+    ticket: Ticket,
+    employee: Employee,
+    approval: Approval | None = None,
+    *,
+    can_complete: bool = False,
+) -> ScheduleItemResponse:
     return ScheduleItemResponse(
         id=schedule.id,
         ticket_id=schedule.ticket_id,
@@ -39,6 +48,12 @@ def _build_schedule_item(schedule: Schedule, ticket: Ticket, employee: Employee)
         slot_type=schedule.slot_type,
         description=_proposal_description(ticket),
         location=ticket.extracted_location,
+        building=ticket.extracted_building,
+        approval_status=approval.status if approval else None,
+        manager_comment=approval.manager_comment if approval else None,
+        ticket_status=ticket.status,
+        completed_at=ticket.completed_at,
+        can_complete=can_complete,
         raw_text=ticket.raw_text,
         creator_username=ticket.creator_username,
     )
@@ -58,6 +73,7 @@ def _build_approval_item(
         status=approval.status,
         description=_proposal_description(ticket),
         location=ticket.extracted_location,
+        building=ticket.extracted_building,
         employee_name=employee.full_name,
         start_time=schedule.start_time,
         end_time=schedule.end_time,
@@ -65,6 +81,31 @@ def _build_approval_item(
         creator_username=ticket.creator_username,
         created_at=approval.created_at,
     )
+
+
+async def _get_employee_id_for_user(db: AsyncSession, username: str) -> int | None:
+    user = await get_user_by_username(db, username)
+    if user is None:
+        return None
+    result = await db.execute(select(Employee.id).where(Employee.user_id == user.id).limit(1))
+    return result.scalar_one_or_none()
+
+
+def _can_complete_ticket(
+    ticket: Ticket,
+    approval: Approval | None,
+    schedule: Schedule,
+    *,
+    role: str,
+    user_employee_id: int | None,
+) -> bool:
+    if ticket.status != "approved" or approval is None or approval.status != "approved":
+        return False
+    if role == "admin":
+        return True
+    if role == "employee" and user_employee_id is not None:
+        return schedule.employee_id == user_employee_id
+    return False
 
 
 async def _get_ticket_for_schedule(db: AsyncSession, schedule: Schedule) -> Ticket | None:
@@ -97,9 +138,18 @@ async def get_current_schedule(
         description="Фильтр по ФИО сотрудника",
     ),
     db: AsyncSession = Depends(get_db),
+    auth: dict | None = Depends(get_optional_auth),
 ) -> list[ScheduleItemResponse]:
     target_day = schedule_date or local_today()
     start_of_day, end_of_day = local_day_range(target_day)
+
+    role = ""
+    user_employee_id: int | None = None
+    if auth:
+        role = normalize_role(auth.get("role", ""))
+        username = auth.get("sub")
+        if role == "employee" and username:
+            user_employee_id = await _get_employee_id_for_user(db, username)
 
     query = (
         select(Schedule, Ticket, Employee, Approval)
@@ -120,9 +170,77 @@ async def get_current_schedule(
     rows = result.all()
 
     return [
-        _build_schedule_item(schedule, ticket, employee)
-        for schedule, ticket, employee, _approval in rows
+        _build_schedule_item(
+            schedule,
+            ticket,
+            employee,
+            approval,
+            can_complete=_can_complete_ticket(
+                ticket,
+                approval,
+                schedule,
+                role=role,
+                user_employee_id=user_employee_id,
+            ),
+        )
+        for schedule, ticket, employee, approval in rows
     ]
+
+
+@router.post("/{schedule_id}/complete", response_model=ScheduleItemResponse)
+async def complete_schedule_item(
+    schedule_id: int,
+    db: AsyncSession = Depends(get_db),
+    auth: dict = Depends(require_auth),
+) -> ScheduleItemResponse:
+    schedule = await db.get(Schedule, schedule_id)
+    if schedule is None:
+        raise HTTPException(status_code=404, detail="Schedule item not found")
+
+    ticket = await _get_ticket_for_schedule(db, schedule)
+    if ticket is None:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    approval_result = await db.execute(
+        select(Approval).where(Approval.proposed_schedule_id == schedule.id).limit(1)
+    )
+    approval = approval_result.scalar_one_or_none()
+
+    role = normalize_role(auth.get("role", ""))
+    if role not in {"admin", "employee"}:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    username = auth.get("sub")
+    user_employee_id = await _get_employee_id_for_user(db, username) if username else None
+
+    if not _can_complete_ticket(
+        ticket,
+        approval,
+        schedule,
+        role=role,
+        user_employee_id=user_employee_id,
+    ):
+        raise HTTPException(status_code=403, detail="You cannot complete this ticket")
+
+    if ticket.status == "completed":
+        raise HTTPException(status_code=400, detail="Ticket is already completed")
+
+    ticket.status = "completed"
+    ticket.completed_at = now_local()
+
+    try:
+        await db.commit()
+        await db.refresh(schedule)
+        await db.refresh(ticket)
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to complete ticket") from exc
+
+    employee = await db.get(Employee, schedule.employee_id)
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    return _build_schedule_item(schedule, ticket, employee, approval, can_complete=False)
 
 
 @router.get("/approvals", response_model=list[ApprovalItemResponse])
@@ -176,6 +294,12 @@ async def update_schedule_approval(
 
     if "location" in update_data:
         ticket.extracted_location = update_data["location"]
+
+    if "building" in update_data:
+        normalized_building = normalize_building(update_data["building"])
+        if normalized_building is None:
+            raise HTTPException(status_code=400, detail="Invalid building value")
+        ticket.extracted_building = normalized_building
 
     if "employee_id" in update_data:
         employee = await db.get(Employee, update_data["employee_id"])

@@ -20,6 +20,7 @@ class TicketResponse(BaseModel):
     missing_fields: list[str] = Field(default_factory=list)
     questions: list[str] = Field(default_factory=list)
     extracted_location: str | None = None
+    extracted_building: str | None = None
     extracted_problem: str | None = None
     ticket_type: str | None = None
     priority: str = "low"
@@ -54,8 +55,12 @@ class TicketJournalItem(BaseModel):
     updated_at: datetime
     creator_username: str | None = None
     extracted_location: str | None = None
+    extracted_building: str | None = None
     extracted_problem: str | None = None
     ticket_type: str | None = None
     priority: str = "low"
     estimated_minutes: int | None = None
     event_datetime: datetime | None = None
+    approval_status: str | None = None
+    manager_comment: str | None = None
+    completed_at: datetime | None = None

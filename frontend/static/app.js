@@ -2,6 +2,7 @@ const API_BASE_URL = window.APP_CONFIG?.apiBaseUrl || "http://localhost:8000";
 const APP_TIMEZONE = window.APP_CONFIG?.timezone || "Asia/Vladivostok";
 
 const FIELD_LABELS = {
+  building: "Здание",
   location: "Кабинет / аудитория",
   problem_description: "Описание проблемы",
   ticket_type: "Тип заявки",
@@ -23,12 +24,30 @@ const PRIORITY_LABELS = {
   high: "Высокая",
 };
 
+const BUILDING_LABELS = {
+  corpus_1: "Первый корпус (ВО, институт, Ленина 73)",
+  corpus_2: "Второй корпус (техникум, Ленина 58)",
+  dorm_1: "Общежитие 1 (Ленина 56)",
+  dorm_2: "Общежитие 2 (Ленина 60)",
+};
+
+function buildingLabel(value) {
+  return BUILDING_LABELS[value] || value || "—";
+}
+
+function managerCommentLabel(approvalStatus) {
+  if (approvalStatus === "rejected") return "Комментарий при отклонении";
+  if (approvalStatus === "approved") return "Комментарий при утверждении";
+  return "Комментарий к решению";
+}
+
 const TICKET_STATUS_LABELS = {
   new: "Новая",
   need_clarification: "Требует уточнения",
   ready_for_scheduling: "Готова к планированию",
   scheduled: "Запланирована",
   approved: "Утверждена",
+  completed: "Выполнена",
   rejected: "Отклонена",
 };
 

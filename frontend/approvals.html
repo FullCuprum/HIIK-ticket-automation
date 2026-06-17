@@ -45,6 +45,7 @@
                 <p class="text-sm text-slate-500">Заявка #<span x-text="item.ticket_id"></span> · Предложение #<span x-text="item.id"></span></p>
                 <h3 class="text-lg font-semibold text-slate-900" x-text="item.description || 'Без описания'"></h3>
                 <p class="text-sm text-slate-600">Автор заявки: <span x-text="formatAuthor(item.creator_username)"></span></p>
+                <p class="text-sm text-slate-600">Здание: <span x-text="buildingLabel(item.building)"></span></p>
                 <p class="text-sm text-slate-600">Кабинет: <span x-text="item.location || '—'"></span></p>
                 <p class="text-sm text-slate-600">Исполнитель: <span x-text="item.employee_name || '—'"></span></p>
                 <p class="text-sm text-slate-600">
@@ -115,6 +116,15 @@
             <label class="mb-1 block text-sm font-medium">Описание в расписании</label>
             <textarea x-model="editForm.description" rows="3" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"></textarea>
             <p class="mt-1 text-xs text-slate-500">Исходный текст заявки не изменяется.</p>
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium">Здание</label>
+            <select x-model="editForm.building" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
+              <option value="">Не указано</option>
+              <template x-for="option in buildingOptions" :key="option.value">
+                <option :value="option.value" x-text="option.label"></option>
+              </template>
+            </select>
           </div>
           <div>
             <label class="mb-1 block text-sm font-medium">Кабинет</label>

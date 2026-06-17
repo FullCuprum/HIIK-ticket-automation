@@ -18,6 +18,12 @@ class ScheduleItemResponse(BaseModel):
     slot_type: str
     description: str | None = None
     location: str | None = None
+    building: str | None = None
+    approval_status: str | None = None
+    manager_comment: str | None = None
+    ticket_status: str | None = None
+    completed_at: datetime | None = None
+    can_complete: bool = False
     raw_text: str
     creator_username: str | None = None
 
@@ -30,6 +36,7 @@ class ApprovalItemResponse(BaseModel):
     status: str
     description: str | None = None
     location: str | None = None
+    building: str | None = None
     employee_name: str | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
@@ -41,6 +48,7 @@ class ApprovalItemResponse(BaseModel):
 class ApprovalProposalUpdate(BaseModel):
     description: str | None = None
     location: str | None = None
+    building: str | None = None
     employee_id: int | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
