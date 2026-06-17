@@ -19,6 +19,7 @@ class Ticket(Base):
     estimated_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     required_skill: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    creator_username: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

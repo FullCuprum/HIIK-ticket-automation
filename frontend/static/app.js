@@ -51,19 +51,24 @@ function normalizeRole(role, username = "") {
 }
 
 function getRole() {
-  let role = localStorage.getItem("user_role");
-  if (!role) {
-    const token = getToken();
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-        role = payload.role;
-      } catch {
-        role = null;
-      }
+  let role = null;
+  const token = getToken();
+  if (token) {
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      role = payload.role;
+    } catch {
+      role = null;
     }
   }
-  return normalizeRole(role, getUsername());
+  if (!role) {
+    role = localStorage.getItem("user_role");
+  }
+  const normalized = normalizeRole(role, getUsername());
+  if (normalized && normalized !== localStorage.getItem("user_role")) {
+    localStorage.setItem("user_role", normalized);
+  }
+  return normalized;
 }
 
 function getUsername() {
@@ -142,7 +147,23 @@ function formatDateTime(value) {
   });
 }
 
-function showToast(message, type = "info") {
+function formatAuthor(username) {
+  return username || "—";
+}
+
+function toDatetimeLocalValue(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  const pad = (part) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function fromDatetimeLocalValue(value) {
+  if (!value) return null;
+  return new Date(value).toISOString();
+}
+
+function showToast(message, type = "info", duration = 3500) {
   const colors = {
     info: "bg-slate-800",
     success: "bg-emerald-600",
@@ -153,7 +174,30 @@ function showToast(message, type = "info") {
   toast.className = `fixed right-4 top-4 z-50 rounded-lg px-4 py-3 text-sm text-white shadow-lg ${colors[type] || colors.info}`;
   toast.textContent = message;
   document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 3500);
+  setTimeout(() => toast.remove(), duration);
+}
+
+function flashMessage(message, type = "error") {
+  sessionStorage.setItem("flash_message", JSON.stringify({ message, type }));
+}
+
+function flushFlashMessage() {
+  const raw = sessionStorage.getItem("flash_message");
+  if (!raw) return;
+  sessionStorage.removeItem("flash_message");
+  try {
+    const { message, type } = JSON.parse(raw);
+    if (message) {
+      showToast(message, type || "error", 7000);
+    }
+  } catch {
+    // ignore invalid flash payload
+  }
+}
+
+function redirectWithAccessDenied(target = "index.html") {
+  flashMessage("Недостаточно прав для просмотра страницы", "error");
+  window.location.href = target;
 }
 
 async function apiRequest(endpoint, method = "GET", body = null) {
@@ -192,14 +236,14 @@ function renderNav(activePage = "") {
   const role = getRole();
   const username = getUsername();
   const links = [
-    { href: "index.html", label: "Подать заявку", roles: ["user", "employee", "admin"], key: "index" },
-    { href: "schedule.html", label: "Расписание", roles: ["employee", "admin"], key: "schedule" },
-    { href: "approvals.html", label: "Утверждение", roles: ["admin"], key: "approvals" },
-    { href: "employees.html", label: "Сотрудники", roles: ["admin"], key: "employees" },
-    { href: "users.html", label: "Пользователи", roles: ["admin"], key: "users" },
+    { href: "index.html", label: "Подать заявку", roles: ["user", "employee", "admin", "manager"], key: "index" },
+    { href: "schedule.html", label: "Расписание", roles: ["employee", "admin", "manager"], key: "schedule" },
+    { href: "approvals.html", label: "Утверждение", roles: ["admin", "manager"], key: "approvals" },
+    { href: "employees.html", label: "Сотрудники", roles: ["admin", "manager"], key: "employees" },
+    { href: "users.html", label: "Пользователи", roles: ["admin", "manager"], key: "users" },
   ];
 
-  const visibleLinks = links.filter((link) => !role || link.roles.includes(role));
+  const visibleLinks = links.filter((link) => role && roleHasAccess(role, link.roles));
 
   return `
     <header class="border-b border-slate-200 bg-white shadow-sm">
@@ -235,7 +279,7 @@ function renderNav(activePage = "") {
 
 function roleHasAccess(role, allowedRoles) {
   const normalizedRole = normalizeRole(role, getUsername());
-  return allowedRoles.includes(normalizedRole);
+  return allowedRoles.some((allowedRole) => normalizeRole(allowedRole) === normalizedRole);
 }
 
 function guardPage(allowedRoles = [], options = {}) {
@@ -253,9 +297,8 @@ function guardPage(allowedRoles = [], options = {}) {
   }
 
   const role = getRole();
-  if (allowedRoles.length && !roleHasAccess(role, allowedRoles)) {
-    showToast("Недостаточно прав для просмотра страницы", "error");
-    window.location.href = "index.html";
+  if (allowedRoles.length && (!role || !roleHasAccess(role, allowedRoles))) {
+    redirectWithAccessDenied("index.html");
     return false;
   }
   return true;
@@ -266,6 +309,7 @@ function initNav() {
   if (navRoot) {
     navRoot.innerHTML = renderNav(navRoot.dataset.active || "");
   }
+  flushFlashMessage();
 }
 
 if (document.readyState === "loading") {

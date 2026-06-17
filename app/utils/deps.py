@@ -3,6 +3,17 @@ from fastapi import Header, HTTPException
 from app.utils.auth import decode_access_token
 
 
+async def get_optional_username(authorization: str | None = Header(default=None)) -> str | None:
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+
+    payload = decode_access_token(authorization.removeprefix("Bearer ").strip())
+    if payload is None:
+        return None
+
+    return payload.get("sub")
+
+
 async def require_admin(authorization: str | None = Header(default=None)) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authorization required")

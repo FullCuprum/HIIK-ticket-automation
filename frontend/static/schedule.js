@@ -7,6 +7,8 @@ document.addEventListener("alpine:init", () => {
     loading: false,
     error: "",
     refreshTimer: null,
+    showDetails: false,
+    detailsItem: null,
 
     get pageTitle() {
       const label = formatDisplayDate(this.selectedDate);
@@ -31,6 +33,11 @@ document.addEventListener("alpine:init", () => {
       return query ? `?${query}` : "";
     },
 
+    openDetails(item) {
+      this.detailsItem = item;
+      this.showDetails = true;
+    },
+
     async loadEmployees() {
       try {
         this.employees = await apiRequest("/schedule/employees");
@@ -53,7 +60,7 @@ document.addEventListener("alpine:init", () => {
     },
 
     async init() {
-      if (!guardPage(["employee", "admin"])) return;
+      if (!guardPage(["employee", "admin", "manager"])) return;
       await this.loadEmployees();
       await this.loadSchedule();
       this.refreshTimer = setInterval(() => this.loadSchedule(), 30000);

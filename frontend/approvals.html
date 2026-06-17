@@ -44,6 +44,7 @@
               <div class="space-y-2">
                 <p class="text-sm text-slate-500">Заявка #<span x-text="item.ticket_id"></span> · Предложение #<span x-text="item.id"></span></p>
                 <h3 class="text-lg font-semibold text-slate-900" x-text="item.description || 'Без описания'"></h3>
+                <p class="text-sm text-slate-600">Автор заявки: <span x-text="formatAuthor(item.creator_username)"></span></p>
                 <p class="text-sm text-slate-600">Кабинет: <span x-text="item.location || '—'"></span></p>
                 <p class="text-sm text-slate-600">Исполнитель: <span x-text="item.employee_name || '—'"></span></p>
                 <p class="text-sm text-slate-600">
@@ -54,6 +55,17 @@
                 </p>
               </div>
               <div class="flex flex-wrap gap-3">
+                <button
+                  @click="openDetails(item)"
+                  class="rounded-xl border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50">
+                  Подробнее
+                </button>
+                <button
+                  @click="openEditForm(item)"
+                  :disabled="loading"
+                  class="rounded-xl border border-blue-200 px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 disabled:opacity-60">
+                  Редактировать
+                </button>
                 <button
                   @click="approveItem(item.id)"
                   :disabled="loading"
@@ -76,9 +88,68 @@
         Нет предложений, ожидающих утверждения.
       </p>
     </section>
+
+    <section x-show="showDetails" x-transition class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
+      <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xl font-semibold">Исходный текст заявки</h3>
+          <button @click="showDetails = false" class="text-slate-500 hover:text-slate-700">✕</button>
+        </div>
+        <template x-if="detailsItem">
+          <div class="mt-4 space-y-3">
+            <p class="text-sm text-slate-600">Автор: <span class="font-medium" x-text="formatAuthor(detailsItem.creator_username)"></span></p>
+            <p class="whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-sm text-slate-800" x-text="detailsItem.raw_text"></p>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <section x-show="showEditForm" x-transition class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
+      <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xl font-semibold">Редактирование предложения</h3>
+          <button @click="showEditForm = false" class="text-slate-500 hover:text-slate-700">✕</button>
+        </div>
+        <form class="mt-6 space-y-4" @submit.prevent="saveProposal()">
+          <div>
+            <label class="mb-1 block text-sm font-medium">Описание в расписании</label>
+            <textarea x-model="editForm.description" rows="3" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"></textarea>
+            <p class="mt-1 text-xs text-slate-500">Исходный текст заявки не изменяется.</p>
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium">Кабинет</label>
+            <input x-model="editForm.location" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium">Исполнитель</label>
+            <select x-model="editForm.employee_id" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
+              <template x-for="employee in employees" :key="employee.id">
+                <option :value="employee.id" x-text="employee.full_name"></option>
+              </template>
+            </select>
+          </div>
+          <div class="grid gap-4 md:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-sm font-medium">Начало</label>
+              <input x-model="editForm.start_time_local" type="datetime-local" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium">Окончание</label>
+              <input x-model="editForm.end_time_local" type="datetime-local" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-3 pt-2">
+            <button type="submit" :disabled="saving" class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
+              <span x-text="saving ? 'Сохранение...' : 'Сохранить'"></span>
+            </button>
+            <button type="button" @click="showEditForm = false" class="rounded-xl border border-slate-300 px-5 py-2.5 text-sm hover:bg-slate-50">Отмена</button>
+          </div>
+        </form>
+      </div>
+    </section>
   </main>
 
-  <script src="static/app.js?v=5"></script>
-  <script src="static/approvals.js"></script>
+  <script src="static/app.js?v=7"></script>
+  <script src="static/approvals.js?v=3"></script>
 </body>
 </html>

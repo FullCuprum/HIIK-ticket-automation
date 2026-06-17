@@ -21,7 +21,7 @@ document.addEventListener("alpine:init", () => {
     },
 
     init() {
-      if (!guardPage(["admin"])) return;
+      if (!guardPage(["admin", "manager"])) return;
       this.loadEmployees();
       this.loadSkillOptions();
     },

@@ -16,6 +16,7 @@ from app.schemas.ticket import (
 from app.services.clarification import ClarificationService
 from app.services.parser import get_ticket_parser
 from app.services.scheduler import schedule_ticket
+from app.utils.deps import get_optional_username
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -107,8 +108,13 @@ async def create_ticket(
     ticket_data: TicketCreate,
     db: AsyncSession = Depends(get_db),
     clarification_service: ClarificationService = Depends(get_clarification_service),
+    creator_username: str | None = Depends(get_optional_username),
 ) -> TicketResponse:
-    ticket = Ticket(raw_text=ticket_data.raw_text, status="new")
+    ticket = Ticket(
+        raw_text=ticket_data.raw_text,
+        status="new",
+        creator_username=creator_username,
+    )
 
     try:
         db.add(ticket)

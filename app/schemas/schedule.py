@@ -18,19 +18,32 @@ class ScheduleItemResponse(BaseModel):
     slot_type: str
     description: str | None = None
     location: str | None = None
+    raw_text: str
+    creator_username: str | None = None
 
 
 class ApprovalItemResponse(BaseModel):
     id: int
     ticket_id: int
     proposed_schedule_id: int
+    employee_id: int
     status: str
     description: str | None = None
     location: str | None = None
     employee_name: str | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
+    raw_text: str
+    creator_username: str | None = None
     created_at: datetime
+
+
+class ApprovalProposalUpdate(BaseModel):
+    description: str | None = None
+    location: str | None = None
+    employee_id: int | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
 
 
 class ApprovalActionRequest(BaseModel):

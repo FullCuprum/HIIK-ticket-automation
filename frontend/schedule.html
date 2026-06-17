@@ -63,6 +63,7 @@
               <th class="px-3 py-3">Кабинет</th>
               <th class="px-3 py-3">Исполнитель</th>
               <th class="px-3 py-3">Тип слота</th>
+              <th class="px-3 py-3"></th>
             </tr>
           </thead>
           <tbody>
@@ -73,6 +74,9 @@
                 <td class="px-3 py-3" x-text="item.location || '—'"></td>
                 <td class="px-3 py-3" x-text="item.employee_name"></td>
                 <td class="px-3 py-3" x-text="item.slot_type"></td>
+                <td class="px-3 py-3">
+                  <button @click="openDetails(item)" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50">Подробнее</button>
+                </td>
               </tr>
             </template>
           </tbody>
@@ -81,9 +85,25 @@
 
       <p x-show="!loading && items.length === 0" x-text="emptyMessage" class="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-500"></p>
     </section>
+
+    <section x-show="showDetails" x-transition class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
+      <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xl font-semibold">Подробности заявки</h3>
+          <button @click="showDetails = false" class="text-slate-500 hover:text-slate-700">✕</button>
+        </div>
+        <template x-if="detailsItem">
+          <div class="mt-4 space-y-3">
+            <p class="text-sm text-slate-600">Автор: <span class="font-medium" x-text="formatAuthor(detailsItem.creator_username)"></span></p>
+            <p class="text-sm font-medium text-slate-700">Исходный текст заявки</p>
+            <p class="whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-sm text-slate-800" x-text="detailsItem.raw_text"></p>
+          </div>
+        </template>
+      </div>
+    </section>
   </main>
 
-  <script src="static/app.js?v=5"></script>
-  <script src="static/schedule.js?v=2"></script>
+  <script src="static/app.js?v=7"></script>
+  <script src="static/schedule.js?v=3"></script>
 </body>
 </html>
