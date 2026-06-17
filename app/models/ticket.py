@@ -18,6 +18,7 @@ class Ticket(Base):
     priority: Mapped[str] = mapped_column(String(20), default="low", nullable=False)
     estimated_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    event_datetime: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     required_skill: Mapped[str | None] = mapped_column(String(100), nullable=True)
     creator_username: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

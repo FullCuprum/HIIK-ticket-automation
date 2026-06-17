@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Журнал заявок</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-800">
+  <div id="app-nav" data-active="journal"></div>
+
+  <main class="mx-auto max-w-6xl px-4 py-8" x-data="journalPage" x-init="init()">
+    <section class="rounded-2xl bg-white p-6 shadow-sm">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h2 class="text-2xl font-semibold text-slate-900">Журнал заявок</h2>
+          <p class="mt-1 text-sm text-slate-500" x-text="isAdmin ? 'Все поданные заявки' : 'Ваши поданные заявки'"></p>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <div>
+            <label class="mb-1 block text-xs font-medium text-slate-500" for="dateFrom">С</label>
+            <input id="dateFrom" type="date" x-model="dateFrom" @change="loadJournal()"
+              class="rounded-xl border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100">
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-slate-500" for="dateTo">По</label>
+            <input id="dateTo" type="date" x-model="dateTo" @change="loadJournal()"
+              class="rounded-xl border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100">
+          </div>
+          <div x-show="isAdmin">
+            <label class="mb-1 block text-xs font-medium text-slate-500" for="creatorUsername">Пользователь</label>
+            <select id="creatorUsername" x-model="creatorUsername" @change="loadJournal()"
+              class="min-w-[180px] rounded-xl border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100">
+              <option value="">Все пользователи</option>
+              <template x-for="author in authors" :key="author">
+                <option :value="author" x-text="author"></option>
+              </template>
+            </select>
+          </div>
+          <div class="flex items-end">
+            <button @click="loadJournal()" :disabled="loading"
+              class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
+              Обновить
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <p x-show="error" x-text="error" class="mt-4 text-sm text-red-600"></p>
+
+      <div class="mt-6 overflow-x-auto">
+        <table class="min-w-full text-left text-sm">
+          <thead class="border-b border-slate-200 text-slate-500">
+            <tr>
+              <th class="px-3 py-3">№</th>
+              <th class="px-3 py-3">Дата</th>
+              <th class="px-3 py-3" x-show="isAdmin">Автор</th>
+              <th class="px-3 py-3">Описание</th>
+              <th class="px-3 py-3">Кабинет</th>
+              <th class="px-3 py-3">Тип</th>
+              <th class="px-3 py-3">Статус</th>
+              <th class="px-3 py-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="item in items" :key="item.id">
+              <tr class="border-b border-slate-100 hover:bg-slate-50">
+                <td class="px-3 py-3 font-medium" x-text="item.id"></td>
+                <td class="px-3 py-3 whitespace-nowrap" x-text="formatDateTime(item.created_at)"></td>
+                <td class="px-3 py-3" x-show="isAdmin" x-text="formatAuthor(item.creator_username)"></td>
+                <td class="px-3 py-3 max-w-xs truncate" x-text="descriptionPreview(item)"></td>
+                <td class="px-3 py-3" x-text="item.extracted_location || '—'"></td>
+                <td class="px-3 py-3" x-text="ticketTypeLabel(item.ticket_type)"></td>
+                <td class="px-3 py-3">
+                  <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700" x-text="statusLabel(item.status)"></span>
+                </td>
+                <td class="px-3 py-3">
+                  <button @click="openDetails(item)" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50">Подробнее</button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <p x-show="!loading && items.length === 0" x-text="emptyMessage" class="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-500"></p>
+    </section>
+
+    <section x-show="showDetails" x-transition class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
+      <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xl font-semibold">Заявка #<span x-text="detailsItem?.id"></span></h3>
+          <button @click="showDetails = false" class="text-slate-500 hover:text-slate-700">✕</button>
+        </div>
+        <template x-if="detailsItem">
+          <div class="mt-4 space-y-4 text-sm">
+            <div class="grid gap-3 sm:grid-cols-2">
+              <p><span class="text-slate-500">Автор:</span> <span class="font-medium" x-text="formatAuthor(detailsItem.creator_username)"></span></p>
+              <p><span class="text-slate-500">Статус:</span> <span class="font-medium" x-text="statusLabel(detailsItem.status)"></span></p>
+              <p><span class="text-slate-500">Создана:</span> <span x-text="formatDateTime(detailsItem.created_at)"></span></p>
+              <p><span class="text-slate-500">Обновлена:</span> <span x-text="formatDateTime(detailsItem.updated_at)"></span></p>
+              <p><span class="text-slate-500">Кабинет:</span> <span x-text="detailsItem.extracted_location || '—'"></span></p>
+              <p><span class="text-slate-500">Тип:</span> <span x-text="ticketTypeLabel(detailsItem.ticket_type)"></span></p>
+              <p><span class="text-slate-500">Срочность:</span> <span x-text="priorityLabel(detailsItem.priority)"></span></p>
+              <p><span class="text-slate-500">Время (мин):</span> <span x-text="detailsItem.estimated_minutes || '—'"></span></p>
+              <p x-show="detailsItem.ticket_type === 'event_support'">
+                <span class="text-slate-500">Дата и время мероприятия:</span>
+                <span x-text="detailsItem.event_datetime ? formatDateTime(detailsItem.event_datetime) : '—'"></span>
+              </p>
+            </div>
+            <div>
+              <p class="mb-2 font-medium text-slate-700">Исходный текст заявки</p>
+              <p class="whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-slate-800" x-text="detailsItem.raw_text"></p>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+  </main>
+
+  <script src="static/app.js?v=8"></script>
+  <script src="static/journal.js?v=1"></script>
+</body>
+</html>

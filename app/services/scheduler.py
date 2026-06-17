@@ -10,6 +10,7 @@ from app.models.approval import Approval
 from app.models.employee import Employee
 from app.models.schedule import Schedule
 from app.models.ticket import Ticket
+from app.services.event_support import EVENT_TOTAL_MINUTES, event_slot_bounds
 from app.utils.datetime_utils import local_today, now_local, workday_bounds
 
 logger = logging.getLogger(__name__)
@@ -187,7 +188,11 @@ async def schedule_ticket(db: AsyncSession, ticket: Ticket) -> tuple[Schedule, A
 
     duration = ticket.estimated_minutes or 60
     try:
-        start_time, end_time = await _find_next_slot_start(db, employee, duration)
+        if ticket.ticket_type == "event_support" and ticket.event_datetime:
+            start_time, end_time = event_slot_bounds(ticket.event_datetime)
+            ticket.estimated_minutes = EVENT_TOTAL_MINUTES
+        else:
+            start_time, end_time = await _find_next_slot_start(db, employee, duration)
     except (ValueError, RuntimeError) as exc:
         logger.error(
             "Failed to schedule ticket_id=%s for employee_id=%s: %s",

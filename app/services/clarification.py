@@ -7,6 +7,7 @@ from typing import Any
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
+from app.services.event_support import apply_event_support_defaults
 from app.services.parser import get_ticket_parser
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ FIELD_QUESTIONS: dict[str, str] = {
     "priority": "Укажите срочность заявки: low или high.",
     "estimated_minutes": "Укажите ориентировочное время выполнения в минутах.",
     "required_skill": "Укажите требуемый навык исполнителя.",
+    "event_datetime": "Укажите дату и время мероприятия.",
 }
 
 
@@ -52,13 +54,21 @@ class ClarificationService:
             "priority": extracted.get("priority"),
             "estimated_minutes": extracted.get("estimated_minutes"),
             "required_skill": extracted.get("required_skill"),
+            "event_datetime": extracted.get("event_datetime"),
         }
+
+    @classmethod
+    def _required_fields(cls, extracted: dict[str, Any]) -> tuple[str, ...]:
+        fields: list[str] = list(REQUIRED_FIELDS)
+        if extracted.get("ticket_type") == "event_support":
+            fields.append("event_datetime")
+        return tuple(fields)
 
     @classmethod
     def compute_missing_fields(cls, extracted: dict[str, Any]) -> list[str]:
         """Проверяет, какие обязательные поля ещё не заполнены."""
         missing_fields: list[str] = []
-        for field in REQUIRED_FIELDS:
+        for field in cls._required_fields(extracted):
             value = extracted.get(field)
             if value is None:
                 missing_fields.append(field)
@@ -71,6 +81,7 @@ class ClarificationService:
         """Дополняет derived-поля на основе уже известных данных."""
         parser = get_ticket_parser()
         result = cls.normalize_extracted(extracted)
+        result = apply_event_support_defaults(result)
 
         if not result.get("priority"):
             result["priority"] = "low"
@@ -215,5 +226,6 @@ class ClarificationService:
             "priority": "срочность",
             "estimated_minutes": "время выполнения",
             "required_skill": "требуемый навык",
+            "event_datetime": "дата и время мероприятия",
         }
         return labels.get(field, field)

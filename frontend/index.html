@@ -65,10 +65,16 @@
           <div>
             <label class="mb-1 block text-sm font-medium text-slate-700" x-text="fieldLabel(field)"></label>
             <input
+              x-show="field !== 'event_datetime'"
               type="text"
               x-model="answers[field]"
               class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
               :placeholder="fieldLabel(field)">
+            <input
+              x-show="field === 'event_datetime'"
+              type="datetime-local"
+              x-model="answers[field]"
+              class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100">
           </div>
         </template>
 
@@ -105,6 +111,10 @@
           <p class="text-xs uppercase text-slate-500">Время выполнения</p>
           <p class="mt-1 font-medium" x-text="extracted.estimated_minutes ? extracted.estimated_minutes + ' мин' : '—'"></p>
         </div>
+        <div class="rounded-xl bg-slate-50 p-4" x-show="extracted.ticket_type === 'event_support'">
+          <p class="text-xs uppercase text-slate-500">Дата и время мероприятия</p>
+          <p class="mt-1 font-medium" x-text="extracted.event_datetime ? formatDateTime(extracted.event_datetime) : '—'"></p>
+        </div>
         <div class="rounded-xl bg-slate-50 p-4 md:col-span-2">
           <p class="text-xs uppercase text-slate-500">Требуемый навык</p>
           <p class="mt-1 font-medium" x-text="extracted.required_skill || '—'"></p>
@@ -113,7 +123,7 @@
     </section>
   </main>
 
-  <script src="static/app.js?v=6"></script>
+  <script src="static/app.js?v=8"></script>
   <script src="static/tickets.js"></script>
 </body>
 </html>

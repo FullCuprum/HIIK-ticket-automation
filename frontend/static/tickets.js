@@ -49,6 +49,7 @@ document.addEventListener("alpine:init", () => {
         priority: data.priority,
         estimated_minutes: data.estimated_minutes,
         required_skill: data.required_skill,
+        event_datetime: data.event_datetime,
       };
       this.resetAnswers();
     },
@@ -92,7 +93,7 @@ document.addEventListener("alpine:init", () => {
       this.missingFields.forEach((field) => {
         const value = this.answers[field];
         if (value !== undefined && value !== null && String(value).trim() !== "") {
-          payload[field] = value;
+          payload[field] = field === "event_datetime" ? fromDatetimeLocalValue(value) || value : value;
         }
       });
 

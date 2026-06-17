@@ -16,10 +16,11 @@
        required_skill='software_admin', missing_fields=[]
 
 Пример 3:
-    "Помогите, пожалуйста. В пятницу мероприятие, нужно настроить звук."
+    "Помогите, пожалуйста. В пятницу 20.06.2026 в 14:00 мероприятие, нужно настроить звук."
     -> location=None, problem_description='настроить звук на мероприятии',
-       ticket_type='event_support', priority='low', estimated_minutes=120,
-       required_skill='network_engineer', missing_fields=['location']
+       ticket_type='event_support', priority='high', estimated_minutes=120,
+       event_datetime='2026-06-20T14:00:00+10:00',
+       required_skill='event_support', missing_fields=['location']
 """
 
 from __future__ import annotations
@@ -27,11 +28,15 @@ from __future__ import annotations
 import json
 import logging
 import re
+from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 
 from natasha import Segmenter
 from pymorphy2 import MorphAnalyzer
+
+from app.services.event_support import EVENT_TOTAL_MINUTES, apply_event_support_defaults
+from app.utils.datetime_utils import get_app_timezone, now_local
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +68,39 @@ TIME_ESTIMATES: dict[str, tuple[int, int]] = {
 SKILL_BY_TYPE: dict[str, str] = {
     "repair": "hardware_support",
     "software_installation": "software_admin",
-    "event_support": "network_engineer",
+    "event_support": "event_support",
     "other": "general_support",
 }
+
+MONTHS_RU: dict[str, int] = {
+    "января": 1,
+    "февраля": 2,
+    "марта": 3,
+    "апреля": 4,
+    "мая": 5,
+    "июня": 6,
+    "июля": 7,
+    "августа": 8,
+    "сентября": 9,
+    "октября": 10,
+    "ноября": 11,
+    "декабря": 12,
+}
+
+EVENT_DATETIME_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(
+        r"(\d{1,2})[./](\d{1,2})[./](\d{2,4})\s+(?:в\s+)?(\d{1,2})[:.](\d{2})",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(\d{1,2})\s+(" + "|".join(MONTHS_RU.keys()) + r")\s+(\d{4})\s+(?:в\s+)?(\d{1,2})[:.](\d{2})",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(\d{1,2})[./](\d{1,2})\s+(?:в\s+)?(\d{1,2})[:.](\d{2})",
+        re.IGNORECASE,
+    ),
+)
 
 
 class TicketParser:
@@ -195,8 +230,11 @@ class TicketParser:
 
         return "other"
 
-    def detect_priority(self, text: str) -> str:
+    def detect_priority(self, text: str, ticket_type: str | None = None) -> str:
         """Определяет срочность заявки."""
+        if ticket_type == "event_support":
+            return "high"
+
         lowered = text.lower()
         if self._contains_any(lowered, self.vocabulary.get("urgency_keywords", [])):
             return "high"
@@ -204,11 +242,62 @@ class TicketParser:
 
     def estimate_required_time(self, ticket_type: str, priority: str) -> int:
         """Оценивает требуемое время выполнения в минутах."""
+        if ticket_type == "event_support":
+            return EVENT_TOTAL_MINUTES
+
         normal, urgent = TIME_ESTIMATES.get(ticket_type, TIME_ESTIMATES["other"])
         return urgent if priority == "high" else normal
 
+    def extract_event_datetime(self, text: str) -> datetime | None:
+        """Извлекает дату и время мероприятия из текста заявки."""
+        lowered = text.lower()
+        tz = get_app_timezone()
+        now = now_local()
+
+        for pattern in EVENT_DATETIME_PATTERNS:
+            match = pattern.search(lowered)
+            if not match:
+                continue
+
+            groups = match.groups()
+            try:
+                if len(groups) == 5 and groups[1] in MONTHS_RU:
+                    day = int(groups[0])
+                    month = MONTHS_RU[groups[1]]
+                    year = int(groups[2])
+                    hour = int(groups[3])
+                    minute = int(groups[4])
+                elif len(groups) == 5:
+                    day = int(groups[0])
+                    month = int(groups[1])
+                    year = int(groups[2])
+                    if year < 100:
+                        year += 2000
+                    hour = int(groups[3])
+                    minute = int(groups[4])
+                elif len(groups) == 4:
+                    day = int(groups[0])
+                    month = int(groups[1])
+                    year = now.year
+                    hour = int(groups[2])
+                    minute = int(groups[3])
+                else:
+                    continue
+
+                candidate = datetime(year, month, day, hour, minute, tzinfo=tz)
+                if candidate < now - timedelta(days=1):
+                    continue
+                return candidate
+            except ValueError:
+                continue
+
+        return None
+
     def determine_required_skill(self, ticket_type: str, problem_description: str) -> str:
         """Определяет требуемый навык исполнителя."""
+        if ticket_type == "event_support":
+            return "event_support"
+
         lowered = problem_description.lower()
         if self._contains_any(lowered, self.vocabulary.get("network_skill_keywords", [])):
             return "network_engineer"
@@ -220,31 +309,39 @@ class TicketParser:
 
         Returns:
             dict с полями location, problem_description, ticket_type, priority,
-            estimated_minutes, required_skill, missing_fields.
+            estimated_minutes, required_skill, event_datetime, missing_fields.
         """
         try:
             location = self.extract_location(raw_text)
             problem_description = self.extract_problem_description(raw_text)
             ticket_type = self.detect_ticket_type(raw_text)
-            priority = self.detect_priority(raw_text)
+            priority = self.detect_priority(raw_text, ticket_type)
             estimated_minutes = self.estimate_required_time(ticket_type, priority)
             required_skill = self.determine_required_skill(ticket_type, problem_description)
+            event_datetime = self.extract_event_datetime(raw_text) if ticket_type == "event_support" else None
 
-            missing_fields: list[str] = []
-            if not location:
-                missing_fields.append("location")
-            if not problem_description.strip():
-                missing_fields.append("problem_description")
-
-            return {
+            result = {
                 "location": location,
                 "problem_description": problem_description,
                 "ticket_type": ticket_type,
                 "priority": priority,
                 "estimated_minutes": estimated_minutes,
                 "required_skill": required_skill,
-                "missing_fields": missing_fields,
+                "event_datetime": event_datetime.isoformat() if event_datetime else None,
+                "missing_fields": [],
             }
+            result = apply_event_support_defaults(result)
+
+            missing_fields: list[str] = []
+            if not location:
+                missing_fields.append("location")
+            if not problem_description.strip():
+                missing_fields.append("problem_description")
+            if ticket_type == "event_support" and not event_datetime:
+                missing_fields.append("event_datetime")
+
+            result["missing_fields"] = missing_fields
+            return result
         except Exception as exc:
             logger.exception("Ticket parsing failed")
             raise RuntimeError("Ticket parsing failed") from exc

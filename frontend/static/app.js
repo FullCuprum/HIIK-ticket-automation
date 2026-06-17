@@ -8,6 +8,7 @@ const FIELD_LABELS = {
   priority: "Срочность",
   estimated_minutes: "Время выполнения (мин)",
   required_skill: "Требуемый навык",
+  event_datetime: "Дата и время мероприятия",
 };
 
 const TICKET_TYPE_LABELS = {
@@ -20,6 +21,15 @@ const TICKET_TYPE_LABELS = {
 const PRIORITY_LABELS = {
   low: "Обычная",
   high: "Высокая",
+};
+
+const TICKET_STATUS_LABELS = {
+  new: "Новая",
+  need_clarification: "Требует уточнения",
+  ready_for_scheduling: "Готова к планированию",
+  scheduled: "Запланирована",
+  approved: "Утверждена",
+  rejected: "Отклонена",
 };
 
 const SKILL_LABELS = {
@@ -121,6 +131,12 @@ function logout() {
 
 function localTodayISO() {
   return new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+}
+
+function localDaysAgoISO(days) {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date.toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
 }
 
 function formatDisplayDate(isoDate) {
@@ -237,6 +253,7 @@ function renderNav(activePage = "") {
   const username = getUsername();
   const links = [
     { href: "index.html", label: "Подать заявку", roles: ["user", "employee", "admin", "manager"], key: "index" },
+    { href: "journal.html", label: "Журнал заявок", roles: ["user", "employee", "admin", "manager"], key: "journal" },
     { href: "schedule.html", label: "Расписание", roles: ["employee", "admin", "manager"], key: "schedule" },
     { href: "approvals.html", label: "Утверждение", roles: ["admin", "manager"], key: "approvals" },
     { href: "employees.html", label: "Сотрудники", roles: ["admin", "manager"], key: "employees" },

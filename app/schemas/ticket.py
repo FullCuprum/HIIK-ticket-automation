@@ -25,6 +25,7 @@ class TicketResponse(BaseModel):
     priority: str = "low"
     estimated_minutes: int | None = None
     required_skill: str | None = None
+    event_datetime: datetime | None = None
 
 
 class ClarificationRequest(BaseModel):
@@ -41,3 +42,20 @@ class ClarificationResponse(BaseModel):
     missing_fields: list[str] = Field(default_factory=list)
     questions: list[str] = Field(default_factory=list)
     extracted: dict[str, Any] = Field(default_factory=dict)
+
+
+class TicketJournalItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    raw_text: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    creator_username: str | None = None
+    extracted_location: str | None = None
+    extracted_problem: str | None = None
+    ticket_type: str | None = None
+    priority: str = "low"
+    estimated_minutes: int | None = None
+    event_datetime: datetime | None = None
