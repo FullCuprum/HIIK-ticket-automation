@@ -28,7 +28,7 @@ FIELD_QUESTIONS: dict[str, str] = {
     "building": "Укажите здание: первый корпус, второй корпус, общежитие 1 или общежитие 2.",
     "location": "Укажите номер кабинета, где возникла проблема.",
     "problem_description": "Опишите подробнее, в чём заключается проблема.",
-    "ticket_type": "Уточните тип заявки: ремонт, установка ПО или сопровождение мероприятия.",
+    "ticket_type": "Уточните тип заявки: ремонт, установка ПО, мероприятие, подготовка рабочего места, консультация, видеонаблюдение или прочее.",
     "priority": "Укажите срочность заявки: low или high.",
     "estimated_minutes": "Укажите ориентировочное время выполнения в минутах.",
     "required_skill": "Укажите требуемый навык исполнителя.",
@@ -102,6 +102,13 @@ class ClarificationService:
             )
 
         return result
+
+    @classmethod
+    def merge_answers(cls, extracted: dict[str, Any], answers: dict[str, Any]) -> dict[str, Any]:
+        """Объединяет ответы пользователя с уже извлечёнными полями."""
+        merged = cls.normalize_extracted(extracted)
+        merged.update({key: value for key, value in answers.items() if value is not None})
+        return cls.fill_derived_fields(merged)
 
     @classmethod
     def generate_question(cls, missing_fields: list[str]) -> str:

@@ -14,28 +14,167 @@
   <main class="mx-auto max-w-4xl px-4 py-8" x-data="ticketPage">
     <section class="rounded-2xl bg-white p-6 shadow-sm">
       <h2 class="text-2xl font-semibold text-slate-900">Подача заявки в отдел инфотелекоммуникаций</h2>
-      <p class="mt-2 text-sm text-slate-500">Опишите проблему в свободной форме. Система извлечёт параметры и при необходимости задаст уточняющие вопросы.</p>
+      <p class="mt-2 text-sm text-slate-500">Опишите проблему в свободной форме. Система извлечёт параметры; при необходимости уточните поля до отправки.</p>
 
       <div class="mt-6 space-y-4">
         <label class="block text-sm font-medium text-slate-700" for="rawText">Текст заявки</label>
         <textarea
           id="rawText"
           x-model="rawText"
+          :disabled="previewActive || loading"
           rows="6"
-          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-500"
           placeholder="Например: Срочно! Не работает интернет в ауд. 214"></textarea>
+        <p x-show="previewActive" class="text-xs text-slate-500">Текст заблокирован на время проверки. Нажмите «Сбросить», чтобы изменить заявку.</p>
 
         <div class="flex flex-wrap gap-3">
           <button
-            @click="submitTicket()"
+            x-show="!previewActive && !ticketId"
+            @click="previewTicket()"
             :disabled="loading"
             class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
-            <span x-text="loading ? 'Отправка...' : 'Отправить'"></span>
+            <span x-text="loading ? 'Обработка...' : 'Проверить заявку'"></span>
+          </button>
+          <button
+            x-show="previewActive && !ticketId"
+            @click="resetPreview()"
+            :disabled="loading"
+            class="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60">
+            Сбросить
           </button>
         </div>
 
         <p x-show="error" x-text="error" class="text-sm text-red-600"></p>
       </div>
+    </section>
+
+    <section x-show="previewActive && !ticketId" class="fade-in mt-6 rounded-2xl bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 class="text-lg font-semibold text-slate-900">Результат обработки заявки</h3>
+          <p class="mt-1 text-sm text-slate-500">Проверьте извлечённые данные. При необходимости уточните поля до отправки.</p>
+        </div>
+        <span
+          class="rounded-full px-3 py-1 text-xs font-semibold"
+          :class="previewMissingFields.length ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'"
+          x-text="previewMissingFields.length ? 'Требуется уточнение' : 'Готово к отправке'">
+        </span>
+      </div>
+
+      <div x-show="previewMissingFields.length" class="mt-4 space-y-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
+        <div>
+          <p class="font-medium">Уточните недостающие данные перед отправкой:</p>
+          <ul class="mt-2 list-disc pl-5">
+            <template x-for="question in previewQuestions" :key="question">
+              <li x-text="question"></li>
+            </template>
+          </ul>
+        </div>
+
+        <template x-for="field in previewMissingFields" :key="field">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" x-text="fieldLabel(field)"></label>
+            <input
+              x-show="field !== 'event_datetime' && field !== 'building' && field !== 'ticket_type' && field !== 'priority'"
+              type="text"
+              x-model="previewAnswers[field]"
+              class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              :placeholder="fieldLabel(field)">
+            <select
+              x-show="field === 'building'"
+              x-model="previewAnswers[field]"
+              class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100">
+              <option value="">Выберите здание</option>
+              <template x-for="option in buildingOptions" :key="option.value">
+                <option :value="option.value" x-text="option.label"></option>
+              </template>
+            </select>
+            <select
+              x-show="field === 'ticket_type'"
+              x-model="previewAnswers[field]"
+              class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100">
+              <option value="">Выберите тип заявки</option>
+              <template x-for="option in ticketTypeOptions" :key="option.value">
+                <option :value="option.value" x-text="option.label"></option>
+              </template>
+            </select>
+            <select
+              x-show="field === 'priority'"
+              x-model="previewAnswers[field]"
+              class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100">
+              <option value="">Выберите срочность</option>
+              <template x-for="option in priorityOptions" :key="option.value">
+                <option :value="option.value" x-text="option.label"></option>
+              </template>
+            </select>
+            <input
+              x-show="field === 'event_datetime'"
+              type="datetime-local"
+              x-model="previewAnswers[field]"
+              class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100">
+          </div>
+        </template>
+
+        <button
+          @click="submitPreviewAnswers()"
+          :disabled="loading"
+          class="rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-60">
+          Применить уточнение
+        </button>
+      </div>
+
+      <div class="mt-6 grid gap-4 md:grid-cols-2">
+        <div class="rounded-xl bg-slate-50 p-4">
+          <p class="text-xs uppercase text-slate-500">Здание</p>
+          <p class="mt-1 font-medium" x-text="buildingLabel(previewExtracted.building)"></p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-4">
+          <p class="text-xs uppercase text-slate-500">Кабинет</p>
+          <p class="mt-1 font-medium" x-text="previewExtracted.location || '—'"></p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-4">
+          <p class="text-xs uppercase text-slate-500">Тип заявки</p>
+          <p class="mt-1 font-medium" x-text="ticketTypeLabel(previewExtracted.ticket_type)"></p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-4 md:col-span-2">
+          <p class="text-xs uppercase text-slate-500">Описание задачи</p>
+          <p class="mt-1 font-medium" x-text="previewExtracted.problem_description || '—'"></p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-4">
+          <p class="text-xs uppercase text-slate-500">Срочность</p>
+          <p class="mt-1 font-medium" x-text="priorityLabel(previewExtracted.priority)"></p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-4">
+          <p class="text-xs uppercase text-slate-500">Время выполнения</p>
+          <p class="mt-1 font-medium" x-text="previewExtracted.estimated_minutes ? previewExtracted.estimated_minutes + ' мин' : '—'"></p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-4" x-show="previewExtracted.ticket_type === 'event_support'">
+          <p class="text-xs uppercase text-slate-500">Дата и время мероприятия</p>
+          <p class="mt-1 font-medium" x-text="previewExtracted.event_datetime ? formatDateTime(previewExtracted.event_datetime) : '—'"></p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-4 md:col-span-2">
+          <p class="text-xs uppercase text-slate-500">Требуемый навык</p>
+          <p class="mt-1 font-medium" x-text="previewExtracted.required_skill || '—'"></p>
+        </div>
+      </div>
+
+      <div class="mt-6 flex flex-wrap gap-3">
+        <button
+          @click="confirmTicket()"
+          :disabled="loading || previewMissingFields.length > 0"
+          class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
+          <span x-text="loading ? 'Отправка...' : 'Подтвердить и отправить'"></span>
+        </button>
+        <button
+          @click="resetPreview()"
+          :disabled="loading"
+          class="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60">
+          Сбросить
+        </button>
+      </div>
+      <p x-show="previewMissingFields.length" class="mt-3 text-xs text-amber-700">
+        Заполните все поля и нажмите «Применить уточнение», чтобы отправить заявку.
+      </p>
     </section>
 
     <section x-show="ticketId" class="fade-in mt-6 rounded-2xl bg-white p-6 shadow-sm">
@@ -51,48 +190,8 @@
         </span>
       </div>
 
-      <div x-show="isClarification" class="mt-6 space-y-4">
-        <div class="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
-          <p class="font-medium">Требуется уточнение</p>
-          <ul class="mt-2 list-disc pl-5">
-            <template x-for="question in questions" :key="question">
-              <li x-text="question"></li>
-            </template>
-          </ul>
-        </div>
-
-        <template x-for="field in missingFields" :key="field">
-          <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700" x-text="fieldLabel(field)"></label>
-            <input
-              x-show="field !== 'event_datetime' && field !== 'building'"
-              type="text"
-              x-model="answers[field]"
-              class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-              :placeholder="fieldLabel(field)">
-            <select
-              x-show="field === 'building'"
-              x-model="answers[field]"
-              class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100">
-              <option value="">Выберите здание</option>
-              <template x-for="option in buildingOptions" :key="option.value">
-                <option :value="option.value" x-text="option.label"></option>
-              </template>
-            </select>
-            <input
-              x-show="field === 'event_datetime'"
-              type="datetime-local"
-              x-model="answers[field]"
-              class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100">
-          </div>
-        </template>
-
-        <button
-          @click="submitAnswers()"
-          :disabled="loading"
-          class="rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-60">
-          Отправить ответ
-        </button>
+      <div x-show="isClarification" class="mt-6 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
+        <p class="font-medium">Заявка сохранена, но требует дополнительного уточнения через администратора.</p>
       </div>
 
       <div x-show="isReady" class="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
@@ -113,7 +212,7 @@
           <p class="mt-1 font-medium" x-text="ticketTypeLabel(extracted.ticket_type)"></p>
         </div>
         <div class="rounded-xl bg-slate-50 p-4 md:col-span-2">
-          <p class="text-xs uppercase text-slate-500">Описание проблемы</p>
+          <p class="text-xs uppercase text-slate-500">Описание задачи</p>
           <p class="mt-1 font-medium" x-text="extracted.problem_description || '—'"></p>
         </div>
         <div class="rounded-xl bg-slate-50 p-4">
@@ -136,7 +235,7 @@
     </section>
   </main>
 
-  <script src="static/app.js?v=9"></script>
+  <script src="static/app.js?v=11"></script>
   <script src="static/tickets.js"></script>
 </body>
 </html>

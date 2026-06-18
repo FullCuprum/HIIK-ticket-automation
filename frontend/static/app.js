@@ -13,10 +13,13 @@ const FIELD_LABELS = {
 };
 
 const TICKET_TYPE_LABELS = {
-  repair: "Ремонт",
+  repair: "Ремонт оборудования",
   software_installation: "Установка ПО",
   event_support: "Сопровождение мероприятия",
-  other: "Другое",
+  workspace_setup: "Подготовка рабочего места",
+  consultation: "Консультация пользователя",
+  video_surveillance: "Видеонаблюдение",
+  other: "Прочее",
 };
 
 const PRIORITY_LABELS = {

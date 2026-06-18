@@ -1,0 +1,230 @@
+[
+  {
+    "id": 1,
+    "text": "Срочно! Не работает интернет в ауд. 214 первого корпуса, пользователи не могут выйти в сеть.",
+    "expected": {
+      "building": "corpus_1",
+      "location": "214",
+      "ticket_type": "repair",
+      "priority": "high",
+      "required_skill": "network_engineer"
+    }
+  },
+  {
+    "id": 2,
+    "text": "В кабинете 105 второго корпуса нужно установить Microsoft Office.",
+    "expected": {
+      "building": "corpus_2",
+      "location": "105",
+      "ticket_type": "software_installation",
+      "priority": "low",
+      "required_skill": "software_admin"
+    }
+  },
+  {
+    "id": 3,
+    "text": "Помогите, пожалуйста. В пятницу 20.06.2026 в 14:00 мероприятие в аудитории 301 первого корпуса, нужно настроить звук.",
+    "expected": {
+      "building": "corpus_1",
+      "location": "301",
+      "ticket_type": "event_support",
+      "priority": "high",
+      "required_skill": "event_support",
+      "event_datetime": "2026-06-20T14:00:00+10:00"
+    }
+  },
+  {
+    "id": 4,
+    "text": "В общежитии №1 на вахте не работает компьютер.",
+    "expected": {
+      "building": "dorm_1",
+      "location": "вахта",
+      "ticket_type": "repair",
+      "priority": "high",
+      "required_skill": "hardware_support"
+    }
+  },
+  {
+    "id": 5,
+    "text": "В коридоре второго общежития пропал сигнал с камеры видеонаблюдения.",
+    "expected": {
+      "building": "dorm_2",
+      "location": null,
+      "ticket_type": "video_surveillance",
+      "priority": "low",
+      "required_skill": "hardware_support"
+    }
+  },
+  {
+    "id": 6,
+    "text": "Принтер в пом. 218 техникума не печатает, срочно нужен ремонт.",
+    "expected": {
+      "building": "corpus_2",
+      "location": "218",
+      "ticket_type": "repair",
+      "priority": "high",
+      "required_skill": "hardware_support"
+    }
+  },
+  {
+    "id": 7,
+    "text": "Подготовка рабочего места для нового сотрудника в кабинете 112, первый корпус.",
+    "expected": {
+      "building": "corpus_1",
+      "location": "112",
+      "ticket_type": "workspace_setup",
+      "priority": "low",
+      "required_skill": "general_support"
+    }
+  },
+  {
+    "id": 8,
+    "text": "Установить Zoom и Teams на ноутбук в аудитории 205 второго корпуса.",
+    "expected": {
+      "building": "corpus_2",
+      "location": "205",
+      "ticket_type": "software_installation",
+      "priority": "low",
+      "required_skill": "software_admin"
+    }
+  },
+  {
+    "id": 9,
+    "text": "20.06.2026 в 10:30 конференция в ауд. 401, подключить проектор и микрофон.",
+    "expected": {
+      "building": null,
+      "location": "401",
+      "ticket_type": "event_support",
+      "priority": "high",
+      "required_skill": "event_support",
+      "event_datetime": "2026-06-20T10:30:00+10:00"
+    },
+    "missing_fields": ["building"]
+  },
+  {
+    "id": 10,
+    "text": "Не работает Wi-Fi в комнате 315 общежития 2.",
+    "expected": {
+      "building": "dorm_2",
+      "location": "315",
+      "ticket_type": "repair",
+      "priority": "high",
+      "required_skill": "network_engineer"
+    }
+  },
+  {
+    "id": 11,
+    "text": "Подскажите, как настроить VPN на домашнем ноутбуке.",
+    "expected": {
+      "building": null,
+      "location": null,
+      "ticket_type": "consultation",
+      "priority": "low",
+      "required_skill": "general_support"
+    },
+    "missing_fields": ["building", "location"]
+  },
+  {
+    "id": 12,
+    "text": "Сломался коммутатор в серверной первого корпуса, Ленина 73.",
+    "expected": {
+      "building": "corpus_1",
+      "location": null,
+      "ticket_type": "repair",
+      "priority": "low",
+      "required_skill": "network_engineer"
+    }
+  },
+  {
+    "id": 13,
+    "text": "В аудитории 214 второго корпуса установить мероприятие — нет, нужно настроить звук на мероприятии 25.06.2026 в 15:00.",
+    "expected": {
+      "building": "corpus_2",
+      "location": "214",
+      "ticket_type": "event_support",
+      "priority": "high",
+      "required_skill": "event_support",
+      "event_datetime": "2026-06-25T15:00:00+10:00"
+    }
+  },
+  {
+    "id": 14,
+    "text": "Замена клавиатуры и мыши в офисе 108, корпус СПО.",
+    "expected": {
+      "building": "corpus_2",
+      "location": "108",
+      "ticket_type": "repair",
+      "priority": "low",
+      "required_skill": "hardware_support"
+    }
+  },
+  {
+    "id": 15,
+    "text": "На вахте общежития на Ленина 56 не включается монитор.",
+    "expected": {
+      "building": "dorm_1",
+      "location": "вахта",
+      "ticket_type": "repair",
+      "priority": "low",
+      "required_skill": "hardware_support"
+    }
+  },
+  {
+    "id": 16,
+    "text": "Нужна установка 1С в кабинете 203, институт, Ленина 73.",
+    "expected": {
+      "building": "corpus_1",
+      "location": "203",
+      "ticket_type": "software_installation",
+      "priority": "low",
+      "required_skill": "software_admin"
+    }
+  },
+  {
+    "id": 17,
+    "text": "Первый корпус, ауд. 501 — не работает проектор.",
+    "expected": {
+      "building": null,
+      "location": "501",
+      "ticket_type": "repair",
+      "priority": "high",
+      "required_skill": "hardware_support"
+    },
+    "missing_fields": ["building"]
+  },
+  {
+    "id": 18,
+    "text": "Техническое сопровождение вебинара 18.06.2026 в 09:00 в аудитории 210 второго корпуса.",
+    "expected": {
+      "building": "corpus_2",
+      "location": "210",
+      "ticket_type": "event_support",
+      "priority": "high",
+      "required_skill": "event_support",
+      "event_datetime": "2026-06-18T09:00:00+10:00"
+    }
+  },
+  {
+    "id": 19,
+    "text": "В первом и втором корпусе не работает интернет в ауд. 115.",
+    "expected": {
+      "building": null,
+      "location": "115",
+      "ticket_type": "repair",
+      "priority": "high",
+      "required_skill": "network_engineer"
+    },
+    "missing_fields": ["building"]
+  },
+  {
+    "id": 20,
+    "text": "Регистратор видеонаблюдения в общежитии №2 на 4 этаже не записывает.",
+    "expected": {
+      "building": "dorm_2",
+      "location": null,
+      "ticket_type": "video_surveillance",
+      "priority": "low",
+      "required_skill": "hardware_support"
+    }
+  }
+]

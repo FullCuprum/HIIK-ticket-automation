@@ -7,7 +7,14 @@ document.addEventListener("alpine:init", () => {
     questions: [],
     answers: {},
     extracted: {},
+    previewActive: false,
+    previewExtracted: {},
+    previewMissingFields: [],
+    previewQuestions: [],
+    previewAnswers: {},
     buildingOptions: Object.entries(BUILDING_LABELS).map(([value, label]) => ({ value, label })),
+    ticketTypeOptions: Object.entries(TICKET_TYPE_LABELS).map(([value, label]) => ({ value, label })),
+    priorityOptions: Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label })),
     loading: false,
     error: "",
 
@@ -35,14 +42,37 @@ document.addEventListener("alpine:init", () => {
       return PRIORITY_LABELS[value] || value || "—";
     },
 
-    resetAnswers() {
-      this.answers = {};
-      this.missingFields.forEach((field) => {
-        this.answers[field] = "";
+    resetPreviewAnswers() {
+      this.previewAnswers = {};
+      this.previewMissingFields.forEach((field) => {
+        this.previewAnswers[field] = "";
       });
     },
 
+    applyPreviewResponse(data) {
+      this.previewActive = true;
+      this.previewExtracted = data.extracted || {};
+      this.previewMissingFields = data.missing_fields || [];
+      this.previewQuestions = data.questions || [];
+      this.resetPreviewAnswers();
+      this.error = "";
+    },
+
+    resetPreview() {
+      this.previewActive = false;
+      this.previewExtracted = {};
+      this.previewMissingFields = [];
+      this.previewQuestions = [];
+      this.previewAnswers = {};
+      this.error = "";
+    },
+
     applyTicketResponse(data) {
+      this.previewActive = false;
+      this.previewExtracted = {};
+      this.previewMissingFields = [];
+      this.previewQuestions = [];
+      this.previewAnswers = {};
       this.ticketId = data.id;
       this.status = data.status;
       this.missingFields = data.missing_fields || [];
@@ -57,18 +87,20 @@ document.addEventListener("alpine:init", () => {
         required_skill: data.required_skill,
         event_datetime: data.event_datetime,
       };
-      this.resetAnswers();
     },
 
-    applyClarificationResponse(data) {
-      this.status = data.status;
-      this.missingFields = data.missing_fields || [];
-      this.questions = data.questions || [];
-      this.extracted = data.extracted || {};
-      this.resetAnswers();
+    buildAnswersPayload(fields, answersStore) {
+      const payload = {};
+      fields.forEach((field) => {
+        const value = answersStore[field];
+        if (value !== undefined && value !== null && String(value).trim() !== "") {
+          payload[field] = field === "event_datetime" ? fromDatetimeLocalValue(value) || value : value;
+        }
+      });
+      return payload;
     },
 
-    async submitTicket() {
+    async previewTicket() {
       this.error = "";
       if (!this.rawText.trim()) {
         this.error = "Введите текст заявки";
@@ -77,9 +109,9 @@ document.addEventListener("alpine:init", () => {
 
       this.loading = true;
       try {
-        const data = await apiRequest("/tickets/", "POST", { raw_text: this.rawText.trim() });
-        this.applyTicketResponse(data);
-        showToast("Заявка отправлена", "success");
+        const data = await apiRequest("/tickets/preview", "POST", { raw_text: this.rawText.trim() });
+        this.applyPreviewResponse(data);
+        showToast("Заявка обработана — проверьте данные", "success");
       } catch (error) {
         this.error = error.message;
         showToast(this.error, "error");
@@ -88,21 +120,14 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    async submitAnswers() {
+    async submitPreviewAnswers() {
       this.error = "";
-      if (!this.ticketId) {
-        this.error = "Сначала отправьте заявку";
+      if (!this.previewActive) {
+        this.error = "Сначала проверьте заявку";
         return;
       }
 
-      const payload = {};
-      this.missingFields.forEach((field) => {
-        const value = this.answers[field];
-        if (value !== undefined && value !== null && String(value).trim() !== "") {
-          payload[field] = field === "event_datetime" ? fromDatetimeLocalValue(value) || value : value;
-        }
-      });
-
+      const payload = this.buildAnswersPayload(this.previewMissingFields, this.previewAnswers);
       if (!Object.keys(payload).length) {
         this.error = "Заполните хотя бы одно поле для уточнения";
         return;
@@ -110,16 +135,49 @@ document.addEventListener("alpine:init", () => {
 
       this.loading = true;
       try {
-        const data = await apiRequest(`/tickets/${this.ticketId}/clarify`, "POST", {
+        const data = await apiRequest("/tickets/preview/clarify", "POST", {
+          raw_text: this.rawText.trim(),
+          extracted: this.previewExtracted,
           answers: payload,
         });
-        this.applyClarificationResponse(data);
+        this.applyPreviewResponse(data);
         showToast(
-          data.status === "ready_for_scheduling"
-            ? "Заявка готова к планированию"
-            : "Ответ принят, требуется дополнительное уточнение",
+          data.missing_fields?.length
+            ? "Данные обновлены — заполните оставшиеся поля"
+            : "Все поля заполнены — можно отправить заявку",
           "success"
         );
+      } catch (error) {
+        this.error = error.message;
+        showToast(this.error, "error");
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async confirmTicket() {
+      this.error = "";
+      if (!this.rawText.trim()) {
+        this.error = "Введите текст заявки";
+        return;
+      }
+      if (!this.previewActive) {
+        this.error = "Сначала проверьте заявку";
+        return;
+      }
+      if (this.previewMissingFields.length > 0) {
+        this.error = "Уточните все поля перед отправкой";
+        return;
+      }
+
+      this.loading = true;
+      try {
+        const data = await apiRequest("/tickets/", "POST", {
+          raw_text: this.rawText.trim(),
+          extracted: this.previewExtracted,
+        });
+        this.applyTicketResponse(data);
+        showToast("Заявка отправлена", "success");
       } catch (error) {
         this.error = error.message;
         showToast(this.error, "error");

@@ -1,26 +1,9 @@
 """
 Парсер текста заявок для извлечения структурированных полей.
 
-Тестовые примеры:
-
-Пример 1:
-    "Срочно! Не работает интернет в ауд. 214, пользователи не могут выйти в сеть."
-    -> location='214', problem_description='Не работает интернет',
-       ticket_type='repair', priority='high', estimated_minutes=30,
-       required_skill='network_engineer', missing_fields=[]
-
-Пример 2:
-    "В кабинете 105 нужно установить Microsoft Office."
-    -> location='105', problem_description='установить Microsoft Office',
-       ticket_type='software_installation', priority='low', estimated_minutes=45,
-       required_skill='software_admin', missing_fields=[]
-
-Пример 3:
-    "Помогите, пожалуйста. В пятницу 20.06.2026 в 14:00 мероприятие, нужно настроить звук."
-    -> location=None, problem_description='настроить звук на мероприятии',
-       ticket_type='event_support', priority='high', estimated_minutes=120,
-       event_datetime='2026-06-20T14:00:00+10:00',
-       required_skill='event_support', missing_fields=['location']
+Двухэтапный разбор:
+1. NER/regex — здание, кабинет, дата, ПО (entities.py)
+2. Классификация типа по очищенному тексту (ticket_type_classifier.py)
 """
 
 from __future__ import annotations
@@ -35,8 +18,13 @@ from pathlib import Path
 from natasha import Segmenter
 from pymorphy2 import MorphAnalyzer
 
-from app.services.buildings import extract_building
+from app.services.buildings import resolve_building
+from app.services.entities import extract_entities, extract_location as extract_location_entity
 from app.services.event_support import EVENT_TOTAL_MINUTES, apply_event_support_defaults
+from app.services.morphology import contains_keyword
+from app.services.problem_summary import compose_problem_description
+from app.services.ticket_type_classifier import classify_ticket_type
+from app.services.ticket_types import SKILL_BY_TYPE, TIME_ESTIMATES
 from app.utils.datetime_utils import get_app_timezone, now_local
 
 logger = logging.getLogger(__name__)
@@ -54,24 +42,17 @@ NOISE_PHRASES = (
 
 LOCATION_PATTERN = re.compile(
     r"(?:\s+в\s+)?"
-    r"(?:ауд\.?\s*|каб\.?\s*|кабинет(?:е)?\s*|помещение\s*|офис\s*|аудитория\s*)"
-    r"(\d+[А-Яа-я]?)",
+    r"(?:"
+    r"ауд\.?\s*|аудитор(?:ия|ии|ию|ией)\s*|"
+    r"каб\.?\s*|кабинет(?:а|е|у|ом)?\s*|"
+    r"комн(?:ата|аты|ате|ату|\.?)\s*|"
+    r"пом(?:ещение|ещения|ещении|\.?)\s*|"
+    r"офис(?:а|е|у|ом)?\s*"
+    r")"
+    r"([1-5]\d{2}[А-Яа-я]?)",
     re.IGNORECASE,
 )
 
-TIME_ESTIMATES: dict[str, tuple[int, int]] = {
-    "repair": (60, 30),
-    "software_installation": (45, 20),
-    "event_support": (120, 60),
-    "other": (30, 15),
-}
-
-SKILL_BY_TYPE: dict[str, str] = {
-    "repair": "hardware_support",
-    "software_installation": "software_admin",
-    "event_support": "event_support",
-    "other": "general_support",
-}
 
 MONTHS_RU: dict[str, int] = {
     "января": 1,
@@ -103,13 +84,19 @@ EVENT_DATETIME_PATTERNS: tuple[re.Pattern[str], ...] = (
     ),
 )
 
+EVENT_DAY_MONTH_PATTERN = re.compile(
+    r"(\d{1,2})\s+(" + "|".join(MONTHS_RU.keys()) + r")(?:\s+(\d{4}))?\b",
+    re.IGNORECASE,
+)
+
+EVENT_TIME_PATTERN = re.compile(r"\bс\s+(\d{1,2})[:.](\d{2})\b", re.IGNORECASE)
+
 
 class TicketParser:
     """Извлекает структурированные поля из свободного текста заявки."""
 
     def __init__(self) -> None:
         try:
-            # Natasha v1.6 не экспортирует класс Natasha; используем Segmenter + pymorphy2.
             self.segmenter = Segmenter()
             try:
                 self.morph = MorphAnalyzer()
@@ -123,29 +110,17 @@ class TicketParser:
 
     @staticmethod
     def load_telecom_vocabulary() -> dict[str, list[str]]:
-        """Загружает словарь телеком-терминов из JSON или возвращает встроенный."""
-        default_vocabulary = {
-            "problem_keywords": [
-                "интернет",
-                "wi-fi",
-                "vpn",
-                "принтер",
-                "кросс",
-                "патч-панель",
-                "роутер",
-                "коммутатор",
-            ],
-            "location_keywords": ["ауд", "каб", "помещение", "офис", "аудитория"],
-            "urgency_keywords": ["срочно", "горит", "авария", "не работает", "всё упало"],
-            "repair_keywords": ["ремонт", "сломалось", "не работает", "замена"],
-            "software_keywords": [
-                "установить",
-                "установка по",
-                "программное обеспечение",
-                "microsoft office",
-            ],
-            "event_keywords": ["мероприятие", "конференция", "подключение к мероприятию"],
-            "network_skill_keywords": ["vpn", "роутер", "интернет", "wi-fi", "сеть"],
+        default_vocabulary: dict[str, list[str]] = {
+            "problem_keywords": ["интернет", "принтер", "коммутатор"],
+            "location_keywords": ["ауд", "каб", "кабинет", "помещение"],
+            "urgency_keywords": ["срочно", "не работает"],
+            "repair_keywords": ["ремонт", "сломалось"],
+            "software_keywords": ["установить", "office"],
+            "event_keywords": ["мероприятие", "конференция"],
+            "workspace_keywords": ["рабочее место"],
+            "network_skill_keywords": ["интернет", "wi-fi"],
+            "software_names": ["Microsoft Office"],
+            "negative_rules": [],
         }
 
         try:
@@ -158,30 +133,26 @@ class TicketParser:
         return default_vocabulary
 
     def extract_location(self, text: str) -> str | None:
-        """Извлекает номер кабинета/аудитории из текста."""
-        match = LOCATION_PATTERN.search(text)
-        if match:
-            return match.group(1)
+        return extract_location_entity(text, self.vocabulary)
 
-        lowered = text.lower()
-        for keyword in self.vocabulary.get("location_keywords", []):
-            pattern = re.compile(
-                rf"{re.escape(keyword)}\.?\s*(\d+[А-Яа-я]?)",
-                re.IGNORECASE,
-            )
-            keyword_match = pattern.search(lowered)
-            if keyword_match:
-                return keyword_match.group(1)
+    def extract_building(self, text: str, location: str | None = None) -> str | None:
+        building, ambiguous = resolve_building(text, location)
+        if ambiguous:
+            return None
+        return building
 
-        return None
+    def extract_problem_description(
+        self,
+        text: str,
+        ticket_type: str | None = None,
+        entities: object | None = None,
+        cleaned_text: str | None = None,
+    ) -> str:
+        if entities is not None:
+            return compose_problem_description(text, ticket_type, entities, self.vocabulary)
 
-    def extract_building(self, text: str) -> str | None:
-        """Извлекает здание из текста заявки."""
-        return extract_building(text)
-
-    def extract_problem_description(self, text: str) -> str:
-        """Возвращает краткое описание проблемы без служебных фраз."""
-        result = text.strip()
+        source = cleaned_text or text
+        result = source.strip()
         original_lower = text.lower()
 
         for phrase in NOISE_PHRASES:
@@ -205,7 +176,10 @@ class TicketParser:
         result = re.sub(r",\s*$", "", result)
         result = re.sub(r"\s+", " ", result).strip(" .,!")
 
-        if any(keyword in original_lower for keyword in self.vocabulary.get("event_keywords", [])):
+        if any(
+            contains_keyword(original_lower, keyword, self.morph)
+            for keyword in self.vocabulary.get("event_keywords", [])
+        ):
             if "мероприят" not in result.lower():
                 result = f"{result} на мероприятии"
 
@@ -220,33 +194,28 @@ class TicketParser:
 
         return text[:100].strip()
 
-    def detect_ticket_type(self, text: str) -> str:
-        """Определяет тип заявки по ключевым словам."""
-        lowered = text.lower()
-
-        if self._contains_any(lowered, self.vocabulary.get("event_keywords", [])):
-            return "event_support"
-        if self._contains_any(lowered, self.vocabulary.get("software_keywords", [])):
-            return "software_installation"
-        if self._contains_any(lowered, self.vocabulary.get("repair_keywords", [])):
-            return "repair"
-        if self._contains_any(lowered, self.vocabulary.get("problem_keywords", [])):
-            return "repair"
-
-        return "other"
+    def detect_ticket_type(self, text: str, cleaned_text: str | None = None) -> str:
+        entities = extract_entities(text, self.vocabulary)
+        classification = classify_ticket_type(
+            text,
+            cleaned_text or entities.cleaned_text,
+            entities,
+            self.vocabulary,
+        )
+        return classification.ticket_type or "other"
 
     def detect_priority(self, text: str, ticket_type: str | None = None) -> str:
-        """Определяет срочность заявки."""
         if ticket_type == "event_support":
             return "high"
 
-        lowered = text.lower()
-        if self._contains_any(lowered, self.vocabulary.get("urgency_keywords", [])):
+        if any(
+            contains_keyword(text, keyword, self.morph)
+            for keyword in self.vocabulary.get("urgency_keywords", [])
+        ):
             return "high"
         return "low"
 
     def estimate_required_time(self, ticket_type: str, priority: str) -> int:
-        """Оценивает требуемое время выполнения в минутах."""
         if ticket_type == "event_support":
             return EVENT_TOTAL_MINUTES
 
@@ -254,7 +223,6 @@ class TicketParser:
         return urgent if priority == "high" else normal
 
     def extract_event_datetime(self, text: str) -> datetime | None:
-        """Извлекает дату и время мероприятия из текста заявки."""
         lowered = text.lower()
         tz = get_app_timezone()
         now = now_local()
@@ -296,35 +264,84 @@ class TicketParser:
             except ValueError:
                 continue
 
+        day_month_match = EVENT_DAY_MONTH_PATTERN.search(lowered)
+        if day_month_match:
+            try:
+                day = int(day_month_match.group(1))
+                month = MONTHS_RU[day_month_match.group(2)]
+                year = int(day_month_match.group(3)) if day_month_match.group(3) else now.year
+                hour, minute = 9, 0
+                time_match = EVENT_TIME_PATTERN.search(lowered)
+                if time_match:
+                    hour = int(time_match.group(1))
+                    minute = int(time_match.group(2))
+
+                candidate = datetime(year, month, day, hour, minute, tzinfo=tz)
+                if candidate < now - timedelta(days=1) and not day_month_match.group(3):
+                    candidate = candidate.replace(year=year + 1)
+                if candidate >= now - timedelta(days=1):
+                    return candidate
+            except ValueError:
+                pass
+
         return None
 
-    def determine_required_skill(self, ticket_type: str, problem_description: str) -> str:
-        """Определяет требуемый навык исполнителя."""
+    def determine_required_skill(
+        self,
+        ticket_type: str,
+        problem_description: str,
+        raw_text: str = "",
+    ) -> str:
         if ticket_type == "event_support":
             return "event_support"
 
-        lowered = problem_description.lower()
-        if self._contains_any(lowered, self.vocabulary.get("network_skill_keywords", [])):
+        if ticket_type == "consultation":
+            return "general_support"
+
+        if ticket_type == "video_surveillance":
+            return "hardware_support"
+
+        if ticket_type in {"other", "workspace_setup"} and re.search(
+            r"подготов\w*\s+рабоч", raw_text, re.IGNORECASE
+        ):
+            return "general_support"
+
+        combined = f"{problem_description} {raw_text}"
+        if any(
+            contains_keyword(combined, keyword, self.morph)
+            for keyword in self.vocabulary.get("network_skill_keywords", [])
+        ):
             return "network_engineer"
         return SKILL_BY_TYPE.get(ticket_type, "general_support")
 
     def parse(self, raw_text: str) -> dict:
-        """
-        Основной метод парсинга заявки.
-
-        Returns:
-            dict с полями location, problem_description, ticket_type, priority,
-            estimated_minutes, required_skill, event_datetime, missing_fields.
-        """
         try:
-            location = self.extract_location(raw_text)
-            building = self.extract_building(raw_text)
-            problem_description = self.extract_problem_description(raw_text)
-            ticket_type = self.detect_ticket_type(raw_text)
+            entities = extract_entities(raw_text, self.vocabulary)
+            classification = classify_ticket_type(
+                raw_text,
+                entities.cleaned_text,
+                entities,
+                self.vocabulary,
+            )
+
+            location = entities.location
+            building = entities.building
+            ticket_type = classification.ticket_type
+            problem_description = self.extract_problem_description(
+                raw_text,
+                ticket_type=ticket_type,
+                entities=entities,
+            )
             priority = self.detect_priority(raw_text, ticket_type)
-            estimated_minutes = self.estimate_required_time(ticket_type, priority)
-            required_skill = self.determine_required_skill(ticket_type, problem_description)
-            event_datetime = self.extract_event_datetime(raw_text) if ticket_type == "event_support" else None
+            estimated_minutes = self.estimate_required_time(ticket_type or "other", priority)
+            required_skill = self.determine_required_skill(
+                ticket_type or "other",
+                problem_description,
+                raw_text,
+            )
+            event_datetime = (
+                self.extract_event_datetime(raw_text) if ticket_type == "event_support" else None
+            )
 
             result = {
                 "location": location,
@@ -340,12 +357,14 @@ class TicketParser:
             result = apply_event_support_defaults(result)
 
             missing_fields: list[str] = []
-            if not building:
+            if not building or entities.building_ambiguous or entities.room_building_conflict:
                 missing_fields.append("building")
             if not location:
                 missing_fields.append("location")
             if not problem_description.strip():
                 missing_fields.append("problem_description")
+            if classification.ambiguous or not ticket_type:
+                missing_fields.append("ticket_type")
             if ticket_type == "event_support" and not event_datetime:
                 missing_fields.append("event_datetime")
 
@@ -355,12 +374,7 @@ class TicketParser:
             logger.exception("Ticket parsing failed")
             raise RuntimeError("Ticket parsing failed") from exc
 
-    @staticmethod
-    def _contains_any(text: str, keywords: list[str]) -> bool:
-        return any(keyword in text for keyword in keywords)
-
 
 @lru_cache
 def get_ticket_parser() -> TicketParser:
-    """Возвращает singleton-парсер, чтобы не перезагружать модели на каждый запрос."""
     return TicketParser()

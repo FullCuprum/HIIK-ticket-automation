@@ -6,6 +6,23 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class TicketCreate(BaseModel):
     raw_text: str = Field(..., min_length=1, description="Ticket text in free form.")
+    extracted: dict[str, Any] | None = Field(
+        default=None,
+        description="Уточнённые поля заявки после предпросмотра.",
+    )
+
+
+class TicketPreviewClarifyRequest(BaseModel):
+    raw_text: str = Field(..., min_length=1)
+    extracted: dict[str, Any] = Field(default_factory=dict)
+    answers: dict[str, Any] = Field(default_factory=dict)
+
+
+class TicketPreviewResponse(BaseModel):
+    raw_text: str
+    missing_fields: list[str] = Field(default_factory=list)
+    questions: list[str] = Field(default_factory=list)
+    extracted: dict[str, Any] = Field(default_factory=dict)
 
 
 class TicketResponse(BaseModel):

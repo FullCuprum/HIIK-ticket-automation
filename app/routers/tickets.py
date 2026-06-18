@@ -16,6 +16,8 @@ from app.schemas.ticket import (
     ClarificationResponse,
     TicketCreate,
     TicketJournalItem,
+    TicketPreviewClarifyRequest,
+    TicketPreviewResponse,
     TicketResponse,
 )
 from app.services.buildings import BUILDINGS, normalize_building
@@ -244,6 +246,50 @@ async def list_ticket_journal(
     ]
 
 
+@router.post("/preview/clarify", response_model=TicketPreviewResponse)
+async def preview_clarify_ticket(payload: TicketPreviewClarifyRequest) -> TicketPreviewResponse:
+    missing_fields = ClarificationService.compute_missing_fields(payload.extracted)
+    if not payload.answers:
+        raise HTTPException(status_code=400, detail="Answers must not be empty.")
+
+    filtered_answers = _filter_answers(payload.answers, missing_fields)
+    if not filtered_answers:
+        raise HTTPException(
+            status_code=400,
+            detail="No valid answers provided for missing fields.",
+        )
+
+    extracted = ClarificationService.merge_answers(payload.extracted, filtered_answers)
+    missing_fields = ClarificationService.compute_missing_fields(extracted)
+    questions = ClarificationService.generate_questions(missing_fields)
+
+    return TicketPreviewResponse(
+        raw_text=payload.raw_text,
+        missing_fields=missing_fields,
+        questions=questions,
+        extracted=extracted,
+    )
+
+
+@router.post("/preview", response_model=TicketPreviewResponse)
+async def preview_ticket(ticket_data: TicketCreate) -> TicketPreviewResponse:
+    try:
+        parsed = get_ticket_parser().parse(ticket_data.raw_text)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail="Failed to parse ticket text.") from exc
+
+    extracted = ClarificationService.fill_derived_fields(_parsed_to_extracted(parsed))
+    missing_fields = ClarificationService.compute_missing_fields(extracted)
+    questions = ClarificationService.generate_questions(missing_fields)
+
+    return TicketPreviewResponse(
+        raw_text=ticket_data.raw_text,
+        missing_fields=missing_fields,
+        questions=questions,
+        extracted=extracted,
+    )
+
+
 @router.post("/", response_model=TicketResponse)
 async def create_ticket(
     ticket_data: TicketCreate,
@@ -266,14 +312,19 @@ async def create_ticket(
         raise HTTPException(status_code=500, detail="Failed to create ticket") from exc
 
     try:
-        parsed = get_ticket_parser().parse(ticket_data.raw_text)
+        if ticket_data.extracted is not None:
+            extracted = ClarificationService.fill_derived_fields(
+                ClarificationService.normalize_extracted(ticket_data.extracted)
+            )
+        else:
+            parsed = get_ticket_parser().parse(ticket_data.raw_text)
+            extracted = ClarificationService.fill_derived_fields(_parsed_to_extracted(parsed))
     except RuntimeError as exc:
         raise HTTPException(
             status_code=500,
             detail="Ticket saved, but parsing failed. Status remains 'new'.",
         ) from exc
 
-    extracted = ClarificationService.fill_derived_fields(_parsed_to_extracted(parsed))
     missing_fields = ClarificationService.compute_missing_fields(extracted)
     _apply_extracted_to_ticket(ticket, extracted)
 
