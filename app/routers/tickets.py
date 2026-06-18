@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import distinct, select
+from sqlalchemy import distinct, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +10,7 @@ from app.db.database import get_db
 from app.db.redis_client import get_clarification_service
 from app.models.approval import Approval
 from app.models.schedule import Schedule
+from app.models.schedule_executor import ScheduleExecutor
 from app.models.ticket import Ticket
 from app.schemas.ticket import (
     ClarificationRequest,
@@ -22,6 +23,7 @@ from app.schemas.ticket import (
 )
 from app.services.buildings import BUILDINGS, normalize_building
 from app.services.clarification import ClarificationService
+from app.services.employee_user import get_employee_id_for_username
 from app.services.parser import get_ticket_parser
 from app.services.scheduler import schedule_ticket
 from app.utils.auth import normalize_role
@@ -219,9 +221,19 @@ async def list_ticket_journal(
     range_start, _ = local_day_range(period_from)
     _, range_end = local_day_range(period_to)
 
+    primary_schedule = (
+        select(
+            Schedule.ticket_id.label("ticket_id"),
+            func.min(Schedule.id).label("schedule_id"),
+        )
+        .group_by(Schedule.ticket_id)
+        .subquery()
+    )
+
     query = (
         select(Ticket, Approval.status, Approval.manager_comment)
-        .outerjoin(Schedule, Schedule.ticket_id == Ticket.id)
+        .outerjoin(primary_schedule, primary_schedule.c.ticket_id == Ticket.id)
+        .outerjoin(Schedule, Schedule.id == primary_schedule.c.schedule_id)
         .outerjoin(Approval, Approval.proposed_schedule_id == Schedule.id)
         .where(
             Ticket.created_at >= range_start,
@@ -230,7 +242,23 @@ async def list_ticket_journal(
         .order_by(Ticket.created_at.desc())
     )
 
-    if role in {"user", "employee"}:
+    if role == "employee":
+        employee_id = await get_employee_id_for_username(db, username)
+        assigned_ticket_ids = (
+            select(Schedule.ticket_id)
+            .join(ScheduleExecutor, ScheduleExecutor.schedule_id == Schedule.id)
+            .where(ScheduleExecutor.employee_id == employee_id)
+        )
+        if employee_id is not None:
+            query = query.where(
+                or_(
+                    Ticket.creator_username == username,
+                    Ticket.id.in_(assigned_ticket_ids),
+                )
+            )
+        else:
+            query = query.where(Ticket.creator_username == username)
+    elif role == "user":
         query = query.where(Ticket.creator_username == username)
     elif creator_username:
         query = query.where(Ticket.creator_username == creator_username.strip())

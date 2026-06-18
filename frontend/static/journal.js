@@ -15,6 +15,12 @@ document.addEventListener("alpine:init", () => {
       return role === "admin" || role === "manager";
     },
 
+    get pageSubtitle() {
+      if (this.isAdmin) return "Все поданные заявки";
+      if (getRole() === "employee") return "Поданные вами и назначенные вам заявки";
+      return "Ваши поданные заявки";
+    },
+
     get emptyMessage() {
       return `За период с ${formatDisplayDate(this.dateFrom)} по ${formatDisplayDate(this.dateTo)} заявок не найдено.`;
     },

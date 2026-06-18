@@ -25,6 +25,16 @@ def generate_temp_password(length: int = DEFAULT_EMPLOYEE_PASSWORD_LENGTH) -> st
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
+async def get_employee_id_for_username(db: AsyncSession, username: str) -> int | None:
+    result = await db.execute(
+        select(Employee.id)
+        .join(User, Employee.user_id == User.id)
+        .where(User.username == username.strip())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def create_user_for_employee(
     db: AsyncSession,
     *,

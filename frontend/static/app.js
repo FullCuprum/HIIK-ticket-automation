@@ -156,9 +156,11 @@ function localTodayISO() {
 }
 
 function localDaysAgoISO(days) {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  return date.toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+  const today = localTodayISO();
+  const [year, month, day] = today.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString().slice(0, 10);
 }
 
 function formatDisplayDate(isoDate) {
