@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.approval import Approval
 from app.models.employee import Employee
 from app.models.schedule import Schedule
+from app.models.schedule_executor import ScheduleExecutor
 from app.models.ticket import Ticket
 from app.services.event_support import EVENT_TOTAL_MINUTES, event_slot_bounds
 from app.utils.datetime_utils import local_today, now_local, workday_bounds
@@ -211,6 +212,7 @@ async def schedule_ticket(db: AsyncSession, ticket: Ticket) -> tuple[Schedule, A
     )
     db.add(schedule)
     await db.flush()
+    db.add(ScheduleExecutor(schedule_id=schedule.id, employee_id=employee.id))
 
     approval = Approval(
         proposed_schedule_id=schedule.id,

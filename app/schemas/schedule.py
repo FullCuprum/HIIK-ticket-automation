@@ -13,6 +13,8 @@ class ScheduleItemResponse(BaseModel):
     ticket_id: int
     employee_id: int
     employee_name: str
+    employee_ids: list[int] = []
+    employee_names: list[str] = []
     start_time: datetime
     end_time: datetime
     slot_type: str
@@ -38,6 +40,8 @@ class ApprovalItemResponse(BaseModel):
     location: str | None = None
     building: str | None = None
     employee_name: str | None = None
+    employee_ids: list[int] = []
+    employee_names: list[str] = []
     start_time: datetime | None = None
     end_time: datetime | None = None
     raw_text: str
@@ -50,6 +54,7 @@ class ApprovalProposalUpdate(BaseModel):
     location: str | None = None
     building: str | None = None
     employee_id: int | None = None
+    employee_ids: list[int] | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
 

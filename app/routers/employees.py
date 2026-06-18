@@ -7,6 +7,7 @@ from app.db.database import get_db
 from app.models.approval import Approval
 from app.models.employee import Employee
 from app.models.schedule import Schedule
+from app.models.schedule_executor import ScheduleExecutor
 from app.models.user import User
 from app.schemas.employee import (
     EmployeeCreate,
@@ -52,9 +53,10 @@ async def _get_scheduled_minutes_today(db: AsyncSession, employee_id: int) -> tu
 
     result = await db.execute(
         select(Schedule, Approval)
+        .join(ScheduleExecutor, ScheduleExecutor.schedule_id == Schedule.id)
         .join(Approval, Approval.proposed_schedule_id == Schedule.id)
         .where(
-            Schedule.employee_id == employee_id,
+            ScheduleExecutor.employee_id == employee_id,
             Schedule.start_time >= start_of_day,
             Schedule.start_time < end_of_day,
             Approval.status.in_(["pending", "approved"]),

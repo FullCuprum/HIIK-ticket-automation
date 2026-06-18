@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.approval import Approval
 from app.models.employee import Employee
 from app.models.schedule import Schedule
+from app.models.schedule_executor import ScheduleExecutor
 from app.models.ticket import Ticket
 from app.models.user import User
 from app.utils.datetime_utils import now_local
@@ -68,10 +69,11 @@ async def sync_linked_user(
 async def employee_has_scheduled_tasks(db: AsyncSession, employee_id: int) -> bool:
     result = await db.execute(
         select(Schedule.id)
+        .join(ScheduleExecutor, ScheduleExecutor.schedule_id == Schedule.id)
         .join(Ticket, Ticket.id == Schedule.ticket_id)
         .join(Approval, Approval.proposed_schedule_id == Schedule.id)
         .where(
-            Schedule.employee_id == employee_id,
+            ScheduleExecutor.employee_id == employee_id,
             Approval.status == "approved",
             Ticket.status == "approved",
         )
@@ -85,8 +87,9 @@ async def employee_has_recent_completed_tasks(db: AsyncSession, employee_id: int
     result = await db.execute(
         select(Ticket.id)
         .join(Schedule, Schedule.ticket_id == Ticket.id)
+        .join(ScheduleExecutor, ScheduleExecutor.schedule_id == Schedule.id)
         .where(
-            Schedule.employee_id == employee_id,
+            ScheduleExecutor.employee_id == employee_id,
             Ticket.status == "completed",
             Ticket.completed_at.is_not(None),
             Ticket.completed_at >= since,

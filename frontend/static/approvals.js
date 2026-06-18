@@ -15,7 +15,7 @@ document.addEventListener("alpine:init", () => {
       description: "",
       location: "",
       building: "",
-      employee_id: "",
+      employee_ids: [],
       start_time_local: "",
       end_time_local: "",
     },
@@ -53,12 +53,15 @@ document.addEventListener("alpine:init", () => {
     },
 
     openEditForm(item) {
+      const executorIds = item.employee_ids?.length
+        ? item.employee_ids
+        : [item.employee_id];
       this.editForm = {
         id: item.id,
         description: item.description || "",
         location: item.location || "",
         building: item.building || "",
-        employee_id: String(item.employee_id),
+        employee_ids: executorIds.map(String),
         start_time_local: toDatetimeLocalValue(item.start_time),
         end_time_local: toDatetimeLocalValue(item.end_time),
       };
@@ -69,11 +72,17 @@ document.addEventListener("alpine:init", () => {
       this.saving = true;
       this.error = "";
       try {
+        if (!this.editForm.employee_ids || this.editForm.employee_ids.length === 0) {
+          this.error = "Выберите хотя бы одного исполнителя";
+          showToast(this.error, "error");
+          return;
+        }
+
         const payload = {
           description: this.editForm.description,
           location: this.editForm.location,
           building: this.editForm.building || null,
-          employee_id: Number(this.editForm.employee_id),
+          employee_ids: this.editForm.employee_ids.map((id) => Number(id)),
           start_time: fromDatetimeLocalValue(this.editForm.start_time_local),
           end_time: fromDatetimeLocalValue(this.editForm.end_time_local),
         };

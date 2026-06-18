@@ -62,7 +62,7 @@
               <th class="px-3 py-3">Описание</th>
               <th class="px-3 py-3">Здание</th>
               <th class="px-3 py-3">Кабинет</th>
-              <th class="px-3 py-3">Исполнитель</th>
+              <th class="px-3 py-3">Исполнители</th>
               <th class="px-3 py-3">Статус</th>
               <th class="px-3 py-3">Тип слота</th>
               <th class="px-3 py-3"></th>
@@ -113,7 +113,7 @@
           <div class="mt-4 space-y-4 text-sm">
             <div class="grid gap-3 sm:grid-cols-2">
               <p><span class="text-slate-500">Автор:</span> <span class="font-medium" x-text="formatAuthor(detailsItem.creator_username)"></span></p>
-              <p><span class="text-slate-500">Исполнитель:</span> <span class="font-medium" x-text="detailsItem.employee_name || '—'"></span></p>
+              <p><span class="text-slate-500">Исполнители:</span> <span class="font-medium" x-text="detailsItem.employee_name || '—'"></span></p>
               <p><span class="text-slate-500">Время:</span>
                 <span x-text="formatDateTime(detailsItem.start_time) + ' — ' + formatDateTime(detailsItem.end_time)"></span>
               </p>

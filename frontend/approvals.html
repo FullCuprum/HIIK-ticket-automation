@@ -47,7 +47,7 @@
                 <p class="text-sm text-slate-600">Автор заявки: <span x-text="formatAuthor(item.creator_username)"></span></p>
                 <p class="text-sm text-slate-600">Здание: <span x-text="buildingLabel(item.building)"></span></p>
                 <p class="text-sm text-slate-600">Кабинет: <span x-text="item.location || '—'"></span></p>
-                <p class="text-sm text-slate-600">Исполнитель: <span x-text="item.employee_name || '—'"></span></p>
+                <p class="text-sm text-slate-600">Исполнители: <span x-text="item.employee_name || '—'"></span></p>
                 <p class="text-sm text-slate-600">
                   Время:
                   <span x-text="formatDateTime(item.start_time)"></span>
@@ -131,12 +131,16 @@
             <input x-model="editForm.location" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
           </div>
           <div>
-            <label class="mb-1 block text-sm font-medium">Исполнитель</label>
-            <select x-model="editForm.employee_id" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
+            <label class="mb-1 block text-sm font-medium">Исполнители</label>
+            <select
+              multiple
+              x-model="editForm.employee_ids"
+              class="h-40 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
               <template x-for="employee in employees" :key="employee.id">
-                <option :value="employee.id" x-text="employee.full_name"></option>
+                <option :value="String(employee.id)" x-text="employee.full_name"></option>
               </template>
             </select>
+            <p class="mt-1 text-xs text-slate-500">Можно выбрать несколько сотрудников (Ctrl+клик).</p>
           </div>
           <div class="grid gap-4 md:grid-cols-2">
             <div>
