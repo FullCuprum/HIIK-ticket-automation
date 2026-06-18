@@ -4,10 +4,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
-from app.models.approval import Approval
 from app.models.employee import Employee
-from app.models.schedule import Schedule
-from app.models.schedule_executor import ScheduleExecutor
 from app.models.user import User
 from app.schemas.employee import (
     EmployeeCreate,
@@ -22,6 +19,7 @@ from app.services.employee_user import (
     employee_has_scheduled_tasks,
     sync_linked_user,
 )
+from app.services.schedule_availability import get_scheduled_minutes
 from app.utils.deps import require_admin
 from app.utils.datetime_utils import local_day_range, local_today
 
@@ -50,27 +48,7 @@ async def _get_user_username(db: AsyncSession, user_id: int | None) -> str | Non
 async def _get_scheduled_minutes_today(db: AsyncSession, employee_id: int) -> tuple[int, int]:
     today = local_today()
     start_of_day, end_of_day = local_day_range(today)
-
-    result = await db.execute(
-        select(Schedule, Approval)
-        .join(ScheduleExecutor, ScheduleExecutor.schedule_id == Schedule.id)
-        .join(Approval, Approval.proposed_schedule_id == Schedule.id)
-        .where(
-            ScheduleExecutor.employee_id == employee_id,
-            Schedule.start_time >= start_of_day,
-            Schedule.start_time < end_of_day,
-            Approval.status.in_(["pending", "approved"]),
-        )
-    )
-
-    total_minutes = 0
-    tasks_count = 0
-    for schedule, _approval in result.all():
-        duration = int((schedule.end_time - schedule.start_time).total_seconds() // 60)
-        total_minutes += max(duration, 0)
-        tasks_count += 1
-
-    return total_minutes, tasks_count
+    return await get_scheduled_minutes(db, employee_id, start_of_day, end_of_day)
 
 
 async def _build_employee_response(

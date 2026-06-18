@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,12 +11,18 @@ from app.models.schedule import Schedule
 from app.models.schedule_executor import ScheduleExecutor
 from app.models.ticket import Ticket
 from app.services.event_support import EVENT_TOTAL_MINUTES, event_slot_bounds
-from app.utils.datetime_utils import local_today, now_local, workday_bounds
+from app.services.schedule_availability import (
+    find_first_free_slot,
+    pick_employee_by_workload,
+    pick_employee_for_fixed_interval,
+)
 
 logger = logging.getLogger(__name__)
 
-SCHEDULE_BUFFER_MINUTES = 15
-MAX_SCHEDULE_LOOKAHEAD_DAYS = 366
+EVENT_MANUAL_REVIEW_COMMENT = (
+    "Автоназначение: у выбранного исполнителя есть пересечение с другими задачами "
+    "в время мероприятия. Требуется проверка администратора."
+)
 
 DEFAULT_EMPLOYEES = [
     {
@@ -74,93 +79,6 @@ async def ensure_default_employees(db: AsyncSession) -> list[Employee]:
     return list(result.scalars().all())
 
 
-def _pick_employee(ticket: Ticket, employees: list[Employee]) -> Employee | None:
-    if not employees:
-        return None
-
-    required_skill = ticket.required_skill
-    if required_skill:
-        for employee in employees:
-            if required_skill in employee.skills:
-                return employee
-
-    return employees[0]
-
-
-def _max_workday_minutes(work_start_hour: int, work_end_hour: int) -> int:
-    return max(0, (work_end_hour - work_start_hour) * 60)
-
-
-async def _find_next_slot_start(
-    db: AsyncSession,
-    employee: Employee,
-    duration_minutes: int,
-) -> tuple[datetime, datetime]:
-    """
-    Подбирает ближайший интервал выполнения в рамках рабочего времени сотрудника.
-
-    Слот всегда укладывается в [work_start_hour, work_end_hour] одного календарного дня.
-    Если в текущий день времени не хватает, переносит на следующий рабочий день.
-    """
-    work_start_hour = employee.work_start_hour
-    work_end_hour = employee.work_end_hour
-    max_daily_minutes = _max_workday_minutes(work_start_hour, work_end_hour)
-    if max_daily_minutes <= 0:
-        raise ValueError(
-            f"Invalid work hours for employee_id={employee.id}: "
-            f"{work_start_hour}-{work_end_hour}"
-        )
-
-    effective_duration = min(duration_minutes, max_daily_minutes)
-    now = now_local()
-    current_day = local_today()
-
-    for day_offset in range(MAX_SCHEDULE_LOOKAHEAD_DAYS):
-        day = current_day + timedelta(days=day_offset)
-        day_start, day_end = workday_bounds(day, work_start_hour, work_end_hour)
-
-        if day_offset == 0:
-            candidate = max(now + timedelta(minutes=SCHEDULE_BUFFER_MINUTES), day_start)
-        else:
-            candidate = day_start
-
-        if candidate >= day_end:
-            continue
-
-        result = await db.execute(
-            select(Schedule)
-            .where(
-                Schedule.employee_id == employee.id,
-                Schedule.start_time >= day_start,
-                Schedule.start_time < day_end,
-            )
-            .order_by(Schedule.end_time.desc())
-        )
-        last_slot = result.scalars().first()
-        if last_slot and last_slot.end_time > candidate:
-            candidate = last_slot.end_time
-
-        if candidate >= day_end:
-            continue
-
-        end_time = candidate + timedelta(minutes=effective_duration)
-        if end_time <= day_end:
-            if effective_duration < duration_minutes:
-                logger.warning(
-                    "Ticket duration %s min exceeds employee_id=%s workday (%s min); "
-                    "scheduled within single workday.",
-                    duration_minutes,
-                    employee.id,
-                    max_daily_minutes,
-                )
-            return candidate, end_time
-
-    raise RuntimeError(
-        f"Could not find schedule slot for employee_id={employee.id} "
-        f"within {MAX_SCHEDULE_LOOKAHEAD_DAYS} days"
-    )
-
-
 async def get_existing_schedule_for_ticket(db: AsyncSession, ticket_id: int) -> Schedule | None:
     result = await db.execute(select(Schedule).where(Schedule.ticket_id == ticket_id))
     return result.scalar_one_or_none()
@@ -170,7 +88,8 @@ async def schedule_ticket(db: AsyncSession, ticket: Ticket) -> tuple[Schedule, A
     """
     Создаёт предложение по расписанию и запись на утверждение начальнику.
 
-  60/25/15 пока упрощённо: тип слота зависит от приоритета заявки.
+    Исполнитель выбирается по навыку и загрузке; время — первый свободный интервал
+    с учётом max_parallel_tasks и всех назначений через schedule_executors.
     """
     existing_schedule = await get_existing_schedule_for_ticket(db, ticket.id)
     if existing_schedule is not None:
@@ -182,23 +101,48 @@ async def schedule_ticket(db: AsyncSession, ticket: Ticket) -> tuple[Schedule, A
             return existing_schedule, approval
 
     employees = await ensure_default_employees(db)
-    employee = _pick_employee(ticket, employees)
-    if employee is None:
+    if not employees:
         logger.error("No active employees available for ticket_id=%s", ticket.id)
         return None
 
     duration = ticket.estimated_minutes or 60
+    manual_review_comment: str | None = None
+
     try:
         if ticket.ticket_type == "event_support" and ticket.event_datetime:
             start_time, end_time = event_slot_bounds(ticket.event_datetime)
             ticket.estimated_minutes = EVENT_TOTAL_MINUTES
+            employee, needs_manual_review = await pick_employee_for_fixed_interval(
+                db,
+                employees,
+                "event_support",
+                start_time,
+                end_time,
+            )
+            if employee is None:
+                logger.error("No executor available for event ticket_id=%s", ticket.id)
+                return None
+            if needs_manual_review:
+                manual_review_comment = EVENT_MANUAL_REVIEW_COMMENT
+                logger.warning(
+                    "Event ticket_id=%s assigned to busy employee_id=%s; manual review required",
+                    ticket.id,
+                    employee.id,
+                )
         else:
-            start_time, end_time = await _find_next_slot_start(db, employee, duration)
+            employee = await pick_employee_by_workload(
+                db,
+                employees,
+                ticket.required_skill,
+            )
+            if employee is None:
+                logger.error("No executor available for ticket_id=%s", ticket.id)
+                return None
+            start_time, end_time = await find_first_free_slot(db, employee, duration)
     except (ValueError, RuntimeError) as exc:
         logger.error(
-            "Failed to schedule ticket_id=%s for employee_id=%s: %s",
+            "Failed to schedule ticket_id=%s: %s",
             ticket.id,
-            employee.id,
             exc,
         )
         return None
@@ -217,15 +161,17 @@ async def schedule_ticket(db: AsyncSession, ticket: Ticket) -> tuple[Schedule, A
     approval = Approval(
         proposed_schedule_id=schedule.id,
         status="pending",
+        manager_comment=manual_review_comment,
     )
     db.add(approval)
 
     ticket.status = "scheduled"
     logger.info(
-        "Scheduled ticket_id=%s to employee_id=%s at %s",
+        "Scheduled ticket_id=%s to employee_id=%s at %s (manual_review=%s)",
         ticket.id,
         employee.id,
         start_time.isoformat(),
+        bool(manual_review_comment),
     )
     return schedule, approval
 
