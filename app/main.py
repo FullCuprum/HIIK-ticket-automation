@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.db.database import AsyncSessionLocal
 from app.routers import approvals, auth, employees, schedule, tickets, users
+from app.services.demo_seed import ensure_demo_dataset
 from app.services.employee_user import ensure_users_for_employees_without_account
 from app.services.user_seed import ensure_demo_users
 
@@ -16,6 +17,7 @@ async def lifespan(app: FastAPI):
     async with AsyncSessionLocal() as session:
         await ensure_demo_users(session)
         await ensure_users_for_employees_without_account(session)
+        await ensure_demo_dataset(session)
         await session.commit()
     yield
 

@@ -405,6 +405,7 @@ async def approve_schedule_item(
     approval_id: int,
     payload: ApprovalActionRequest,
     db: AsyncSession = Depends(get_db),
+    _: dict = Depends(require_admin),
 ) -> MessageResponse:
     approval = await db.get(Approval, approval_id)
     if approval is None:
@@ -438,6 +439,7 @@ async def reject_schedule_item(
     approval_id: int,
     payload: ApprovalActionRequest,
     db: AsyncSession = Depends(get_db),
+    _: dict = Depends(require_admin),
 ) -> MessageResponse:
     approval = await db.get(Approval, approval_id)
     if approval is None:
